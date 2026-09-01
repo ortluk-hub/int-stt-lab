@@ -17,14 +17,15 @@ The planning document should avoid prematurely locking the implementation to an 
 
 ### 1. Project purpose and hard constraints
 Capture the non-negotiable requirements, including:
-- genuine integer/fixed-point trainable model state;
-- no hidden floating-point master/shadow weights used to compute or apply parameter updates;
-- distinguish true integer training from QAT, low-precision floating point, and integer-forward/floating-update schemes;
+- genuine integer/fixed-point trainable model state (no hidden floating-point master/shadow weights);
+- all tensors (weights, activations, gradients, optimizer state) must remain in integer format throughout training;
 - CPU training on the available server hardware/dataset;
-- Snapdragon 888 NPU deployment target;
-- no silent CPU fallback accepted as proof of NPU deployment;
+- Snapdragon 888 NPU deployment target (SM8350 HTP supports 8-bit and 16-bit quantized integer operations only);
+- no silent CPU fallback accepted as proof of NPU deployment (must demonstrate actual HTP/NPU execution);
 - bounded model size and resource use appropriate for a small on-device STT model;
-- reproducible train/eval/checkpoint/inference loop.
+- reproducible train/eval/checkpoint/inference loop;
+- dynamic range limitations addressed via per-layer block scaling, wider accumulators, and stochastic/pseudo-stochastic rounding;
+- HTP-supported operations limited to: Conv2d, DepthConv2d, TransposeConv2D, FullyConnected, Matmul, Batchnorm, LayerNorm (and variations).
 
 ### 2. Open research questions for Ada
 At minimum, Ada should investigate:
@@ -45,13 +46,17 @@ Define phases with explicit entry/exit criteria. A reasonable starting structure
 - **Phase 0 — Research and feasibility**
   - characterize dataset and target hardware constraints;
   - survey integer-training methods and QNN/HTP deployment constraints;
-  - select one or more candidate training arithmetic schemes and model families.
+  - select one or more candidate training arithmetic schemes and model families;
+  - define verification methods for integer-only training claim (framework-specific checks, logging, assertions).
 
 - **Phase 1 — Minimal learning proof**
-  - build the smallest end-to-end training loop on a small dataset subset;
+  - build the smallest end-to-end training loop on a small dataset subset (e.g., Speech Commands yes/no/up/down);
+  - use a simple feed-forward network or small CNN on spectrogram patches to verify integer-only training;
   - prove loss reduction and held-out decoding;
   - demonstrate checkpoint save/reload;
-  - verify that trainable model state does not rely on floating-point master parameters.
+  - verify that trainable model state does not rely on floating-point master parameters (use framework-specific mechanisms to confirm integer-only operations);
+  - investigate CTC loss implementation using integer operations (e.g., log-domain approximations);
+  - note: if purely integer CTC loss proves infeasible, consider alternative integer-friendly loss functions or decoding strategies.
 
 - **Phase 2 — Baseline and numerical validation**
   - train a conventional reference implementation of the same/similar architecture where useful;
@@ -108,7 +113,8 @@ Track known risks separately from requirements. At minimum include:
 - unsupported QNN/HTP operators;
 - model architecture becoming deployment-incompatible;
 - dataset quality/split leakage;
-- accuracy tradeoffs from strict arithmetic constraints.
+- accuracy tradeoffs from strict arithmetic constraints;
+- feature extraction remaining CPU-side (if NPU-compatible implementation proves infeasible).
 
 ### 7. Definition of project success
 Define minimum success independently from stretch goals. The minimum success criterion should require both:
