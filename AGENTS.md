@@ -22,8 +22,8 @@
 - **Primary Communication**: This repository (AGENTS.md, issue tracker, pull requests).
 - **Documentation**: Requirements, design, and meeting notes live in the `docs/` directory.
 - **Code**: Source code lives in the `src/` directory.
-- **Reviews**: Conducted via pull requests; Morgan reviews Nemo's work.
-- **Research Outputs**: Ada's research outputs are stored in the `research/` directory and referenced in AGENTS.md or docs.
+- **Reviews**: Conducted via pull requests; Morgan reviews Nemo's work. Additionally, Morgan can review architecture and experimental methodology via review records stored in `docs/reviews/`.
+- **Research Outputs**: Ada's research outputs are stored in the `research/` directory. Ada's research handoff must contain: sources, distinction between evidence and inference, confidence levels and uncertainties, constraints discovered, and recommendations/questions for Nemo.
 
 ## Workflow
 1. **Research Phase** (if needed): Ada gathers evidence and shares with Nemo.
@@ -39,4 +39,4 @@
 
 ## Initial Setup
 - Repository initialized at: `~/ortluk-hub/int-stt-lab`
-- Default branch: `master` (consider renaming to `main` for consistency with conventions)
+- Default branch: `main`
