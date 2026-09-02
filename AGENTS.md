@@ -41,3 +41,5 @@
 ## Initial Setup
 - Repository initialized at: `~/ortluk-hub/int-stt-lab`
 - Default branch: `main`
+
+- Editing Permission Rule: An agent may only edit files in this repository if the 'Who's ball' field in handoff_status.md is set to their name.
