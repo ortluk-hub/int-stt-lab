@@ -1,0 +1,78 @@
+{
+  "framework": "NITI",
+  "approximation_interface": {
+    "function_name": "log_add_exp_piecewise_approx_niti",
+    "description": "Piecewise linear log-sum-exp approximation adapted for NITI's int8 matrix operations and block scaling scheme",
+    "inputs": {
+      "a_scaled": "int8 - log value a scaled by layer-specific scale factor s_a",
+      "b_scaled": "int8 - log value b scaled by layer-specific scale factor s_b",
+      "scale_a": "float - actual scale factor for a (power of two, from block scaling)",
+      "scale_b": "float - actual scale factor for b (power of two, from block scaling)"
+    },
+    "output": {
+      "result_scaled": "int8 - approximation of log(exp(a) + exp(b)) scaled appropriately for subsequent operations",
+      "output_scale": "float - scale factor to apply to result_scaled to get actual log value"
+    },
+    "parameters": {
+      "Z_MIN": -10.0,
+      "Z_MAX": 0.0,
+      "NUM_SEGMENTS": 40,
+      "segments": "Precomputed array of {z_left, z_right, slope, intercept} for softplus(z) approximation"
+    }
+  },
+  "integration_details": {
+    "data_flow": [
+      "1. NITI stores log probabilities as int8 values scaled by layer-specific factors (powers of two)",
+      "2. For log-sum-exp, retrieve the two scaled int8 values and their respective scale factors",
+      "3. Convert to actual log values: a_log = a_scaled * scale_a, b_log = b_scaled * scale_b",
+      "4. Ensure a_log >= b_log (swap if needed, remembering to swap scales too)",
+      "5. Compute z = b_log - a_log (will be <= 0)",
+      "6. Clamp z to [Z_MIN, Z_MAX] = [-10, 0]",
+      "7. Look up segment index: seg_idx = int((z - Z_MIN) / (Z_MAX - Z_MIN) * NUM_SEGMENTS)",
+      "8. Compute approximation: log1p_exp_z \u2248 slope[seg_idx] * z + intercept[seg_idx]",
+      "9. Result in log domain: result_log = a_log + log1p_exp_z",
+      "10. Convert result_log back to int8 format for NITI: result_scaled = round(result_log / output_scale)",
+      "11. Determine output_scale appropriately (typically max(scale_a, scale_b) or layer-specific)"
+    ],
+    "niti_specific_adaptations": [
+      "The approximation works on the actual log values (float) derived from scaled integers",
+      "The block scaling scheme's power-of-two scales enable efficient conversion (bit shifts)",
+      "The clamping to [-10,0] aligns with NITI's dynamic range for log probabilities",
+      "Only multiplication, addition, and comparison are used - all efficient in int8/int32 arithmetic",
+      "The segment lookup table (40 entries) is small enough for on-chip storage"
+    ]
+  },
+  "integration_requirements": [
+    "Must maintain numerical stability in log domain",
+    "Input clamping to [-10, 0] must be preserved",
+    "Should work with NITI's block scaling scheme (powers-of-two scaling factors)",
+    "Only multiplication, addition, and comparison operations should be used in the core approximation",
+    "Input and output should remain compatible with NITI's int8 representation",
+    "The approximation should not break the integer-only property of NITI"
+  ],
+  "estimated_resource_usage": {
+    "lookup_table": "40 segments \u00d7 (slope + intercept) = 80 values (can be int8 or int16)",
+    "computation": "Approx 5-10 integer operations per log-add-exp (multiply, add, compare)",
+    "memory": "Minimal - primarily the lookup table",
+    "precision": "Designed to match 4.4 fixed-point format (4 integer, 4 fractional bits) for log values in [-10,0]"
+  },
+  "test_cases_niti": [
+    {
+      "description": "Identity case: log(exp(0) + exp(-inf)) = 0",
+      "a_scaled": 0,
+      "b_scaled": -128,
+      "scale_a": 0.0625,
+      "scale_b": 0.0625,
+      "expected_result_scaled": 0
+    },
+    {
+      "description": "Symmetric case: log(exp(x) + exp(x)) = x + log(2)",
+      "a_scaled": 16,
+      "b_scaled": 16,
+      "scale_a": 0.0625,
+      "scale_b": 0.0625,
+      "expected_result_scaled": 24
+    }
+  ],
+  "last_updated": "2026-09-02 12:35:31"
+}

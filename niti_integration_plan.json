@@ -1,0 +1,32 @@
+{
+  "framework": "NITI",
+  "workstream": "Integration",
+  "started_at": "2026-09-02 12:27:39",
+  "ada_specific_advice": "integrate the approximation into their int8 matrix operations, leveraging their existing block scaling scheme to handle the dynamic range",
+  "integration_approach": {
+    "step_1": "Research NITI architecture (int8 matrix operations, block scaling scheme)",
+    "step_2": "Identify where log-sum-exp operations occur in NITI",
+    "step_3": "Design wrapper/replacement for log-sum-exp using piecewise linear approximation",
+    "step_4": "Ensure compatibility with int8 data types and block scaling",
+    "step_5": "Implement and test integration"
+  },
+  "key_considerations_from_ada": [
+    "Maintain approximation's input clamping to [-10,0] range",
+    "Approximation uses only multiplication, addition, and comparison operations",
+    "40-segment approach provides sufficient accuracy while remaining computationally efficient"
+  ],
+  "next_immediate_actions": [
+    "1. Create NITI architecture research document",
+    "2. Define interface requirements for approximation integration",
+    "3. Create prototype integration module",
+    "4. Test with synthetic data",
+    "5. Validate numerical stability"
+  ],
+  "files_to_create": [
+    "niti_architecture_research.md",
+    "integration_interface_spec.json",
+    "niti_approximation_wrapper.py",
+    "niti_integration_test.py"
+  ],
+  "status": "in_progress"
+}

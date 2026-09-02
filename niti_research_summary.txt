@@ -1,0 +1,20 @@
+NITI Research Summary for CTC Phase 1 Integration
+==================================================
+
+KEY FINDINGS:
+- NITI uses int8 matrix multiplication with int32 accumulation
+- Block exponentiation scaling scheme provides dynamic range
+- Scaling is per-layer and powers-of-two for efficiency
+- Integer entropy loss calculation is mentioned (log-sum-exp related)
+- Operations: int8 × int8 → int32 accumulation → rescaling
+
+INTEGRATION POINTS:
+- Softmax layers
+- Cross-entropy loss
+- Entropy regularization in scaling scheme
+
+APPROXIMATION FIT:
+- Clamping [-10,0] matches expected log-prob range
+- Uses only mul/add/compare (NITI-friendly)
+- Can work with scaled integers
+- 40-segment lookup table is hardware-efficient
