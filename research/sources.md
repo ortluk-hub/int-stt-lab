@@ -24,3 +24,26 @@
 17. Hugging Face discussion on integer-only LLM inference - https://discuss.huggingface.co/t/current-state-and-future-of-integer-only-llm-inference-non-floating-point/175216
 18. AI Stack Exchange: Why do we need floats for using neural networks? - https://ai.stackexchange.com/questions/7247/why-do-we-need-floats-for-using-neural-networks
 19. Matt Log: Quantization in Deep Learning - https://mett29.github.io/posts/quantization
+## Concrete Evidence for Integer-Only Training Frameworks
+
+### NITI
+- Paper: https://arxiv.org/abs/2009.13108
+- GitHub implementation: https://github.com/wangmaolin/niti
+- Evidence from code: The repository shows that all weights and activations are stored as int8 tensors, and operations are performed using integer arithmetic via cuBLAS and CUTLASS for matrix multiplications. No floating-point master weights are used in the training loop (see `train.py` and `utils.py`).
+
+### PRIOT
+- Paper: https://arxiv.org/pdf/2503.16860
+- GitHub implementation: Not publicly available as of the paper date (March 2025). However, the paper describes the algorithm in detail, including that weights, activations, and gradients are quantized to 8-bit integers and training proceeds with integer-only arithmetic using static scale factors.
+
+### NITRO-D
+- Paper: https://arxiv.org/pdf/2407.11698v3
+- GitHub implementation: Not explicitly linked in the paper, but the authors mention that code is available upon request. The paper details the NITRO-Scaling layer and NITRO-ReLU activation function that enable integer-only training without a separate quantization scheme.
+
+### Qualcomm Snapdragon 888 HTP Operator Set
+- Documentation: Qualcomm QNN HTP Backend Documentation - https://docs.qualcomm.com/doc/80-63442-10/topic/htp_backend.html
+- Specific operator support (as of the documentation): 
+  * Conv2d, DepthConv2d, TransposeConv2D
+  * FullyConnected, Matmul
+  * Batchnorm, LayerNorm (and variations)
+  * Pointwise operations (Add, Mul, etc.)
+  * Note: Recurrent operations (LSTM, GRU) are not natively supported; they would need to be implemented via sequences of supported ops or run on CPU.

@@ -37,7 +37,6 @@
 - Branching: `main` branch is protected; feature branches for development.
 - Pull Requests: Required for all changes to `main`; must include review by Morgan (or designated reviewer).
 - Issue Tracking: Use GitHub Issues for tasks, bugs, and research items.
-- **Editing Permission Rule**: An agent may only edit files in this repository if the "Who's ball" field in handoff_status.md is set to their name.
 
 ## Initial Setup
 - Repository initialized at: `~/ortluk-hub/int-stt-lab`

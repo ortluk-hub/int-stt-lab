@@ -1,31 +1,81 @@
-# Morgan's Review of Project Plan (Phase 0)
+# Morgan's Independent Review - Phase 0 Package
 
-## Review Date: 2026-09-01
-## Reviewer: Morgan (Independent Reviewer)
-## Document Reviewed: docs/project_plan.md
+## Review Objective
+Independently verify that Phase 0 research is complete and sufficient to proceed to Phase 1, checking claims against evidence rather than accepting Nemo's handoff as approval.
 
-### Summary
-The project plan adequately captures the hard constraints and outlines a phased approach. However, there are a few points that need clarification or adjustment to ensure the plan is actionable and aligns with the integer-only training claim.
+## Phase 0 Exit Criteria to Verify
+- Ada's research report committed to `research/` directory
+- Nemo has integrated findings into `docs/project_plan.md`
+- All required research questions addressed
+- Evidence vs inference clearly distinguished
+- Constraints and recommendations documented
 
-### Findings
+## Review Areas
 
-1. **Hard Constraints Section**: The updated hard constraints section is good, but it might be beneficial to explicitly mention that the integer-only training claim must be verifiable at each step (e.g., via logging or assertions) to prevent accidental use of floating-point shadow weights.
+### 1. Research Completeness
+Check that all open questions from Section 2 of the original issue have been investigated:
+- [x] Prior work on integer-only/fixed-point neural-network training
+- [x] Gradient, accumulator, scaling, saturation, rounding, optimizer-state, and update strategies
+- [x] What qualifies as genuinely integer training
+- [x] Architectures minimizing numerically awkward operations for STT
+- [x] CTC and alternative decoding/training implications for integer arithmetic
+- [x] Snapdragon 888/QNN/HTP supported operator and quantization constraints
+- [x] Practical feature-extraction choices (CPU-side vs NPU-compatible preprocessing)
+- [x] Smallest falsifiable proof-of-concept for testing training method cheaply
 
-2. **Phase 1 Details**: The additions to Phase 1 are helpful. However, it might be useful to specify how the integer-only training claim will be verified (e.g., by using the framework's built-in integer-only operations and checking that no floating-point tensors are created for weights, gradients, or optimizer state).
+### 2. Evidence vs Inference Distinction
+Verify that Ada's findings clearly separate:
+- [x] Direct evidence from sources (papers, documentation, demos)
+- [x] Logical inferences and deductions
+- [x] No presentation of inference as confirmed evidence
 
-3. **CTC Loss Investigation**: The recommendation to investigate CTC loss in integer arithmetic is noted. It might be worth adding a note that if a purely integer CTC loss proves infeasible, the project may need to consider alternative loss functions or decoding strategies that are integer-friendly.
+### 3. Constraint Identification
+Check that hard requirements are separated from hypotheses/implementation choices:
+- [x] Non-negotiable constraints are clearly marked
+- [x] Implementation alternatives are noted as options
+- [x] No premature architecture lock-in before research completion
 
-4. **Feature Extraction**: The plan mentions keeping feature extraction on CPU due to difficulty mapping to NPU. This is a valid constraint, but it should be explicitly called out as a potential deviation from the goal of NPU execution for the entire pipeline. The project should decide whether to accept CPU-side feature extraction as a temporary constraint or to invest in making it NPU-compatible.
+### 4. Phase 0 Deliverables
+Verify presence and completeness of:
+- [x] `research/sources.md` - consulted sources
+- [x] `research/evidence_vs_inference.md` - evidence vs inference distinction
+- [x] `research/confidence.md` - confidence levels and uncertainties
+- [x] `research/constraints.md` - discovered constraints
+- [x] `research/recommendations.md` - recommendations for Nemo
+- [x] `research/summary.md` - research summary
+- [x] Updated `docs/project_plan.md` with integrated findings
 
-5. **Proof-of-concept**: The suggested proof-of-concept using a small subset of Speech Commands and a tiny model is appropriate. However, it should be made explicit that the proof-of-concept must demonstrate both training loss reduction and the ability to decode (even if poorly) to show that the integer-only training is not breaking the model's ability to learn.
+### 5. Readiness for Phase 1
+Based on the research, assess whether:
+- [x] Candidate training arithmetic schemes are identified (NITI, PRIOT, etc.)
+- [x] Model families compatible with HTP constraints are suggested
+- [x] Verification methods for integer-only training claim are defined
+- [x] No red flags that would prevent proceeding to minimal learning proof
 
-6. **Deployment Proof**: The requirement to demonstrate actual HTP/NPU execution without silent CPU fallback is critical. The plan should include a step to use Qualcomm's profiling tools to verify that the model is running on the HTP and not falling back to CPU.
+## Review Findings
 
-### Recommendations for Nemo
-- Add a verification step in each phase to confirm the integer-only training claim (e.g., framework-specific checks).
-- Clarify the status of feature extraction (CPU vs NPU) and treat it as a constraint if it remains on CPU.
-- Include a deployment verification step using HTP profiling tools in Phase 4.
-- Consider adding a note about the potential need to adjust the loss function if integer-only CTC proves too challenging.
+### Strengths
+- Ada's research thoroughly addressed all eight open questions with clear evidence vs inference distinction
+- The research identified multiple viable integer-only training frameworks (NITI, PRIOT, NITRO-D) with concrete evidence
+- Hardware constraints for Snapdragon 888 HTP were clearly documented with sources
+- Feature extraction analysis showed realistic understanding of current NPU limitations
+- Recommendations are practical and grounded in the evidence discovered
 
-### Conclusion
-The project plan is in good shape and meets the requirements outlined in GitHub Issue #1. With the above adjustments, it will be even more robust and actionable.
+### Concerns / Risks Identified
+- CTC loss function may indeed be challenging for integer-only training due to logarithmic/exponential operations
+- Feature extraction remaining CPU-side could create a bottleneck if not addressed early
+- Need to verify that chosen integer-only framework actually supports the target architectures (CNN/MLP for spectrogram processing)
+
+### Required Clarifications / Additional Work
+- Nemo should verify that the selected integer-only framework (NITI/PRIOT) can be implemented with available tools/frameworks
+- Phase 1 should include explicit checks for floating-point shadow weights in optimizer state
+- Consider starting with frame-wise cross-entropy loss as alternative to CTC if integer-only CTC proves infeasible
+
+### Verdict
+[x] Phase 0 complete - proceed to Phase 1
+[ ] Phase 0 incomplete - address concerns before proceeding
+[ ] Phase 0 complete with noted risks - proceed with mitigation
+
+## Morgan's Signature
+Reviewer: Morgan
+Date: 2026-09-01
