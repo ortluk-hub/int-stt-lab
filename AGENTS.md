@@ -25,7 +25,7 @@
 - **Reviews**: Conducted via pull requests; Morgan reviews Nemo's work. Additionally, Morgan can review architecture and experimental methodology via review records stored in `docs/reviews/`.
 - **Research Outputs**: Ada's research outputs are stored in the `research/` directory. Ada's research handoff must contain: sources, distinction between evidence and inference, confidence levels and uncertainties, constraints discovered, and recommendations/questions for Nemo.
 - **Team Mempers**: Named teammate work must be handed to the persistent Ada/Morgan/Nemo profiles through the durable peer-work mechanism. delegate_task is reserved for ephemeral helper/subagent work.
- 
+
 ## Workflow
 1. **Research Phase** (if needed): Ada gathers evidence and shares with Nemo.
 2. **Engineering Phase**: Nemo drafts requirements, designs, implements, validates.
@@ -37,6 +37,7 @@
 - Branching: `main` branch is protected; feature branches for development.
 - Pull Requests: Required for all changes to `main`; must include review by Morgan (or designated reviewer).
 - Issue Tracking: Use GitHub Issues for tasks, bugs, and research items.
+- **Editing Permission Rule**: An agent may only edit files in this repository if the "Who's ball" field in handoff_status.md is set to their name.
 
 ## Initial Setup
 - Repository initialized at: `~/ortluk-hub/int-stt-lab`
