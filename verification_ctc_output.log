@@ -1,0 +1,14 @@
+VERIFICATION_CTC.PY OUTPUT
+==================================================
+Return code: 0
+
+STDOUT:
+Testing CTC loss approximation error...
+Test 1 - Approx: 3.912023, Exact: 3.912023, Error: 0.000000
+Test 2 - Approx: 0.459529, Exact: 0.464712, Error: 0.005183
+Test 3 - Approx: 3.073441, Exact: 3.074644, Error: 0.001204
+
+Maximum approximation error: 0.005183
+❌ FAIL: CTC approximation error exceeds 1e-3 target
+
+STDERR:

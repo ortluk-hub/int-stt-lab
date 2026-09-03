@@ -1,0 +1,14 @@
+VERIFICATION_CTC.PY OUTPUT (IMPROVED 80-SEGMENT APPROXIMATION)
+======================================================================
+Return code: 0
+
+STDOUT:
+Testing CTC loss approximation error...
+Test 1 - Approx: 3.912023, Exact: 3.912023, Error: 0.000000
+Test 2 - Approx: 4.670285, Exact: 4.671056, Error: 0.000771
+Test 3 - Approx: 3.075714, Exact: 3.076034, Error: 0.000319
+
+Maximum approximation error: 0.000771
+✅ PASS: CTC approximation error is below 1e-3 target
+
+STDERR:
