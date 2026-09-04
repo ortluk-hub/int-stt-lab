@@ -4,6 +4,12 @@ The repository structure and collaboration contract are now in place. `AGENTS.md
 ## Objective
 Create `docs/project_plan.md` as the authoritative project-planning document for `int-stt-lab` before implementation begins.
 
+## Current Status
+- Phase 0: Completed (Ada's research report committed, Nemo integrated findings, Morgan's independent review completed)
+- Phase 1: Completed (NITI framework integration and verification done), Morgan reviewed and approved.
+- Phase 2: In progress (CPU integer-only training scripts developed and verified, NITI integration training pipeline implemented, verification scripts ready).
+
+
 The project goal is to investigate and build a small speech-to-text model that is:
 
 - trained natively with integer/fixed-point arithmetic rather than conventionally trained and merely quantized afterward;
