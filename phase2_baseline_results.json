@@ -1,0 +1,10 @@
+{
+  "baseline_accuracy": 16.5,
+  "baseline_loss": 1.629050612449646,
+  "baseline_parameters": 7109,
+  "integer_accuracy": 19.5,
+  "integer_loss": 1.6079987968717302,
+  "integer_parameters": 7109,
+  "accuracy_difference": -3.0,
+  "loss_difference": -0.0210518155779158
+}
