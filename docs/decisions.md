@@ -52,3 +52,91 @@ headroom via NPU deployment (Phase 4).
 
 **Artifacts:** checkpoints/ablation-{a,b,c,ax,d3r}/metrics.jsonl (all committed),
 logs/ablation_AX_D3R.log, checkpoints/int-ctc/{latest,history}.json (run 1).
+
+---
+
+# Decision Log — 2026-09-08 (clean-base run completion)
+
+## D-002: Clean-base failure is a weight-rail freeze, not exponent rails
+
+**Decision:** Retire the D-001 intervention queue as specified (its trigger never
+fired). The clean-base run failed by a different mechanism, diagnosed to code
+level: body-layer weight codes are pinned at the int8 rails with outward-pointing
+quantized gradients, so `int8_clip` in `weight_update` reverts every update to
+the same code — 4 of 5 weight tensors are permanently frozen. Next-run design
+pending user decision (options below); no new run launched.
+
+**Evidence:**
+
+1. Full-run trajectory (checkpoints/cleanbase-d3-128/metrics.jsonl, 12 evals,
+   every 250 steps): WER 1.000 at *every* eval, blank 0.992→0.988, uniq 1→3.
+   Loss 599→8 by ~step 100 (the trivial all-blank optimum), then climbed with
+   oscillation to 71.8 at step 3000 — never better than trivial, ending worse.
+   **No exponent rails ever appeared**: act exps frozen at the init ladder
+   3/9/16/21/27 for the whole run; activation sat ≤0.41%; clamp ≤0.003%.
+2. Freeze timeline (weight codes at rails):
+   | when | proj | blocks.0 | blocks.1 | blocks.2 | head |
+   |---|---|---|---|---|---|
+   | init (seed 0) | 0.21% | 0.20% | 0.19% | 0.27% | 0.20% |
+   | step 250 | 46.1% | 50.0% | 36.1% | 29.7% | 4.1% |
+   | step 3000 | 100% | 99.2% | 55.3% | 61.1% | 26.0% |
+   pct_changed confirms the freeze: proj/blocks.0/blocks.1 exactly 0.0% at
+   every eval from step 500 on; blocks.2 decayed 13.6%→0.1%; head 50%→33%.
+3. One-step probe at end-of-run weights (scripts/probe_weight_rail_freeze.py,
+   real dev batch): body quantized grad codes are large and dense (proj 100%
+   nonzero, max|code| 107; blocks.0 99%/116) and point outward on railed
+   entries — the int16 subtract overshoots the rail, int8_clip clamps back:
+   30720/30720 proj updates revert. Actual code changes: 0 for all four body
+   layers, 486 for head (head grads only 0.84% nonzero, max 70).
+4. Init enabler (verified at seed 0): `weight_quant` takes codes from
+   `round(w/max|w| × 127)` but the exponent from
+   `ceil(log2(max|w|.clamp_min(1))) − 7`. Every Xavier tensor has max|w| < 1,
+   so the clamp forces weight_exp = −7 for **all** tensors and the effective
+   weights are renormalized to max|w| ≈ 0.99 (Xavier bound 0.07–0.15; 6.5–14×
+   too large; mean|code| ≈ 63). Two consequences: weights start ~63 codes from
+   the rail so ~1–2 consistent ±100-code updates rail them; and the +6/block
+   act-exponent ladder is pinned by init (mean|code| ≈ 2⁶), not by dynamics —
+   which is why "exponent stability" looked healthy all run.
+
+**Reasoning:**
+1. Failure chain: renormalized init → consistent outward grad pressure during
+   the first ~100 steps (loss 599→8 while the head learns all-blank) rails the
+   body by step ~250 → clamp makes body updates permanent no-ops → only the
+   head keeps training → head alone cannot escape the all-blank optimum →
+   loss rises/oscillates while head logits tie up (top1–top2 gap 2.67→0.09
+   codes, tied 7%→91%).
+2. The 40-step healthy reference (uniq 52, D-001) fits: the rail march takes
+   ~250 steps, so step-40 diversity predates the freeze.
+3. Update magnitude is uncontrolled: quantized grad codes (±75–116 body,
+   ±70 head) are the same order as the weight code range (±127) — integer SGD
+   at effectively full-range LR. The D-001 lever (grad_shift) targets exactly
+   this family but 1 bit (2×) is too little against codes this large; a faithful Xavier init alone only buys ~1.7× headroom (max code
+   ≈ 74–77 at the correct exponent), so init fix and update-magnitude control
+   are both needed, possibly with weight re-quantization on rail (weight_exp
+   management, the weight-space analogue of the act rescale).
+4. Exponent management (recenter/branch) remains irrelevant at this scale:
+   activation rails never appeared. D-001's rails-triggered grad_shift 1
+   queue entry is obsolete; the grad_shift *family* survives with a revised
+   purpose (update-magnitude control) and needs a revised magnitude (≥2–3
+   bits), which shrinks head updates too — a per-layer or saturation-aware
+   update policy is an open design point.
+
+**Next-run options (pending user decision, NOT pre-authorized):**
+- A. Update-safety arm (recommended): fix `weight_quant` exponent (drop
+  `clamp_min(1)`, quantize by 2^exp so Xavier scale survives) + grad_shift 3,
+  same clean-base config otherwise, plus post-quantization grad-code
+  instrumentation (nonzero%, max code, at-rail-outward% per layer).
+- B. Strict single-variable attribution: two arms — init-fix only, grad_shift
+  only — slower but isolates which lever un-freezes the body.
+- C. Add weight re-quantization on rail (renormalize tensor + decrement
+  weight_exp when >X% of codes rail) — the principled long-term fix, more
+  implementation risk.
+
+**Confounds / limits:** probe run at end-of-run weights (the rails are also an
+*effect* of training; the step-250 saturation data shows the march was real
+and early); one dev batch; head grad sparsity (0.84%) is itself end-state (tied
+logits → near-uniform softmax → tiny CTC grads), not a cause.
+
+**Artifacts:** checkpoints/cleanbase-d3-128/{metrics.jsonl,history.json,
+best.pt,latest.pt} (committed), logs/cleanbase_d3_128.log,
+scripts/probe_weight_rail_freeze.py (committed).

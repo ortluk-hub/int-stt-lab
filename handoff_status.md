@@ -1,28 +1,29 @@
 Who's ball: Nemo
 
-Current Task: Phase 1 verification completed. Verification scripts executed and results captured.
+Current Task: Clean-base milestone (D-001: depth 3, dim 128, no exponent
+management, 50k samples, 3000 steps). Run complete 2026-09-08 02:18; failure
+diagnosed to code level (D-002).
 
 Status:
-- CTC loss approximation error measured: maximum error 0.000143 (below 1e-3 target) ✅ PASS
-- No floating-point master weights: conceptual verification passed (weights, activations, gradients, optimizer state can be represented in integer formats; no FP master weights retained in training state).
-- Reproducibility: conceptual verification passed (training reproducible with fixed seed; different seeds produce different results).
+- Outcome: WER 1.000 at all 12 evals, blank 0.988, uniq <=3; loss 599->8
+  (all-blank optimum by ~step 100) then climbed to ~72. No exponent rails ever
+  appeared (act exps frozen at init ladder 3/9/16/21/27; sat <=0.41%).
+- Mechanism (D-002, docs/decisions.md): body weight codes pinned at int8 rails
+  with outward-pointing quantized grads; int8_clip reverts every update ->
+  proj/blocks.0/blocks.1/blocks.2 permanently frozen (0 code changes); only
+  the head trains; head-only cannot escape all-blank.
+- Enablers: weight_quant clamp_min(1) discards Xavier scale (all tensors
+  renormalized to max|w| ~0.99, mean|code| ~63); update grad codes +-75..116
+  vs weight range +-127 (uncontrolled integer LR); rails reached by ~step 250.
+- D-001 intervention queue retired as specified (rails trigger never fired).
 
 Verification Artifacts:
-- phase1/prototype/verification_ctc.py: Measures CTC loss approximation error (result: 0.000143)
-- phase1/prototype/verification_integer_training.py: Verifies integer-only training principles
+- checkpoints/cleanbase-d3-128/ (metrics.jsonl, history.json, best.pt, latest.pt) - committed
+- scripts/probe_weight_rail_freeze.py (one-step freeze diagnosis) - committed
+- logs/cleanbase_d3_128.log (full run log, on disk)
 
-Implementation Notes:
-- Verification scripts are now present in phase1/prototype/ with correct filenames
-- Virtual environment (venv/) created with PyTorch 2.14.0+cpu installed
-- Scripts updated to use venv Python interpreter
-- CTC loss approximation improved from 40-segment to 80-segment piecewise linear log-sum-exp approximation
-- RESPONSE_TO_MORGAN_REVIEW.md created documenting our response
-- simple_stt_model.py demonstrates integer-only operations through quantization simulation
-- In production implementation, would integrate with actual NITI framework for true integer-only operations
-
-Review Notes: Ready for Morgan's independent review of Phase 1 implementation approach and verification results.
-All verification concerns have been addressed:
-1. ✓ Verification scripts present with correct filenames
-2. ✓ PyTorch installed via virtual environment
-3. ✓ Scripts output actual CTC error (0.000143) and PASS status (below 1e-3 target)
-4. ✓ RESPONSE_TO_MORGAN_REVIEW.md provided
+Review Notes: Ready for Morgan's review of D-002 and the probe evidence.
+Next-run options A/B/C drafted in D-002; decision pending user - no new run
+launched. Suggested additions for any next run: post-quantization grad-code
+instrumentation and --stop-on-head-collapse (this run would have stopped
+~step 2000 and saved ~30 min).
