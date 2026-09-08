@@ -358,3 +358,38 @@ binding constraint.
 
 **Artifacts:** checkpoints/cleanbase-d3-128-gs3-rq/{metrics.jsonl,history.json,
 best.pt,latest.pt} (committed), logs/cleanbase_d3_128_gs3_rq.log.
+
+---
+
+## D-007: Launch blank-suppression arm (option A) — cleanbase-d3-128-bs
+
+**Decision (user-approved, 2026-09-08):** D-006 option A. Identical config to
+gs3-rq (scale-preserving init + grad_shift 3 + rail-rescale 0.25 +
+stop-on-head-collapse) plus training-time blank-logit suppression: an 8-code
+offset subtracted from the head's blank-column logits inside the training
+CTC loss (step < 1000), halved to 4 (< 1500), then 0. Eval decodes unbiased
+logits. Default off (peak 0); the arm passes `--blank-suppress 8` explicitly.
+
+**Mechanism notes:** the shift is constant, so the returned error signal is
+the exact gradient of the shaped objective (chain rule). While active, the
+all-blank path costs a factor e^-8 (~3e-4) in relative probability, so CTC
+must route probability through real tokens during the babble/alignment
+phase; the ramp-off hands the blank decision back to the model. The offset
+in effect is recorded in every eval record (`blank_suppress`).
+
+**Verification:** schedule unit-checked (8/4/0 at the right boundaries;
+peak 0 disables); suppressed loss differs as expected (init +0.6 —
+suppression bites once blank concentrates, not at near-uniform init);
+3-step training smoke + unbiased eval path OK; integer-state report OK.
+
+**What this run tests:** D-006's residual hypothesis — the collapse is the
+CTC shortcut, not any remaining mechanical constraint. Success: uniq ≥ ~10
+or WER < 1 through the step 250–1000 window and surviving ramp-off
+(1500+); stretch: WER descending after the babble phase. Failure modes:
+(a) collapse returns at ramp-off → longer hold or permanent low offset;
+(b) babble persists without alignment (WER > 1, uniq high) → suppression
+worked, alignment needs LR schedule/epochs; (c) no change → shortcut is
+established before step 250 (unlikely given the babble window).
+
+**Artifacts:** checkpoints/cleanbase-d3-128-bs/ (as produced),
+logs/cleanbase_d3_128_bs.log.

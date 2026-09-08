@@ -1,34 +1,27 @@
 Who's ball: Nemo
 
-Current Task: Rail-rescale arm (D-005/D-006) complete. Verdict: the D-004
-capacity-loss hypothesis is REFUTED - with rails fully managed (221/354/40/9/0
-rescales across layers, rail fractions <= 19%), the run collapsed to all-blank
-identically to gs3 (uniq 212->20->8->3->1 by step 1000, WER 1.000 after).
+Current Task: Blank-suppression arm (D-007, D-006 option A):
+cleanbase-d3-128-bs. Same config as gs3-rq plus training-time blank-logit
+suppression (8-code offset on the head's blank column in the training CTC
+loss, steps <1000; halved to 4 until step 1500; 0 after; eval decodes
+unbiased). Launched 2026-09-08 ~12:40, ETA ~14:25; monitor every 20 min.
 
 Status:
-- Blank collapse is semantic, not mechanical: the head sits at the all-blank
-  shortcut optimum (grads ~zero, 0 rescales, exp unchanged) while body layers
-  receive consistent-sign gradients (~7.4 codes/step net outward, sustained
-  3000 steps - far beyond quantizer-bias magnitude). The rail march was a
-  symptom of that pressure all along.
-- Body weight VALUE growth (blocks.0 exp -9 -> +345) is forward-invariant
-  (act_calc renormalizes; ReLU homogeneous) - parametrization churn, invisible
-  to loss. Rail management kept in the standard config as cheap insurance.
-- Three-run arc now complete and committed: failed run (mechanism found) ->
-  gs3 (mechanics fixed, collapse persists) -> gs3-rq (rails managed, collapse
-  identical). The binding constraint is now squarely the CTC shortcut.
-
-Next decision pending user (D-006 options):
-- A (recommended): blank-logit suppression arm - integer code offset on the
-  head's blank column in the training CTC path only (-8 codes step <1000,
-  -4 <1500, 0 after); eval decodes unbiased.
-- B: integer LR schedule (gs3 -> gs5 after step ~500).
-- C: larger batch (direction unclear).
+- Three-run arc complete (failed -> gs3 -> gs3-rq): integer mechanics are
+  sound; the binding constraint is the CTC all-blank shortcut. Rail
+  management stays in the standard config as free insurance.
+- D-007 tests the semantic hypothesis directly. Success: uniq >= ~10 or
+  WER < 1 through the step 250-1000 window and surviving ramp-off.
+- Completion routine: trajectory + four-way comparison, D-008 draft if
+  evidence is clear, artifact commit, cron cleanup.
 
 Verification Artifacts:
-- docs/decisions.md D-001..D-006 (committed)
-- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq}/ (all committed)
+- docs/decisions.md D-001..D-007 (committed)
+- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq}/ (committed); -bs as produced
 - scripts/probe_weight_rail_freeze.py (committed)
 
-Review Notes: Morgan review of D-002..D-006 welcome. No further runs launched
-without explicit user decision.
+Review Notes: Morgan review of D-002..D-007 welcome while the arm runs.
+No further runs without explicit user decision. Next candidates if the
+blank-suppression arm fails per its documented modes: longer suppression
+hold, permanent low offset, integer LR schedule, or more alignment
+capacity/epochs.
