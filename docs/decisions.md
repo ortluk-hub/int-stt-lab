@@ -189,3 +189,63 @@ that is evidence for per-layer update scaling (D-002 reasoning 4).
 
 **Artifacts:** checkpoints/cleanbase-d3-128-gs3/ (as produced),
 logs/cleanbase_d3_128_gs3.log.
+
+---
+
+## D-004: gs3 arm — mechanics fixed; rail march now implicated in the blank collapse
+
+**Decision:** The D-003 fixes held mechanically (no early freeze, head healthy,
+every layer trainable ~10× longer) but the run still ends blank-collapsed
+(WER 1.000, uniq 1, blank 0.985). The diversity window at step ~250 produced
+the project's first real phonetic text at scale — and dies exactly as the
+weight-rail march re-pins the body. Next run pending user decision; primary
+candidate is option C (weight re-quantization on rail): it is both the
+durable mechanical fix and the direct test of the capacity-loss hypothesis
+for the blank collapse.
+
+**Evidence (cleanbase-d3-128-gs3 vs failed run, every 250 steps):**
+
+| step | gs3 loss | WER | uniq | max w_rail | body chg | head gap | | failed loss | uniq | body chg | head gap |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 250 | 10.2 | **2.42** | **212** | 0.1% | 100% | 3.2 | | 27.4 | 1 | (frozen at 250) | 2.7 |
+| 500 | 8.2 | 1.01 | 20 | 7% | 79% | 6.2 | | 31.0 | 1 | 0% | 1.4 |
+| 750 | 7.5 | 1.00 | 2 | 43% | 54% | 8.2 | | 48.2 | 1 | 0% | 1.1 |
+| 1000 | 8.3 | 1.00 | 1 | 45% | 18% | 6.3 | | 19.0 | 1 | 0% | 2.6 |
+| 2000 | 10.4 | 1.00 | 1 | 50% | 1% | 3.0 | | 58.1 | 2 | 0% | 0.19 |
+| 3000 | 11.5 | 1.00 | 1 | 50% | 0% | 4.3 | | 71.8 | 3 | 0% | 0.09 |
+
+- Step-250 decodes are genuine phonetic babble, not noise: uniq 212, decoded
+  length 53, zero repeats ("tis t inst firstose never t firsted my the
+  trothernisedoseo" for "less pressure is needed when playing your
+  clarinet"). CER 2.33 — over-generation, but acoustics→text mapping is live.
+- Collapse timeline: uniq 212→20→2→1 as w_rail goes 0.1%→7%→43% and body
+  change 100%→79%→54% (steps 250→750). By step 2500 proj/blocks.0/blocks.1
+  are back to 0.0% change (proj pinned at 50% rail, all outward).
+- Head stayed healthy the whole run: gap 3–8 codes, tied ≤ 6.5% (failed run
+  ended 0.09 / 91%). Loss held a 7.5–14 band (failed run climbed to 72).
+- best.pt is misleading: best-by-WER saved a collapsed state (WER 1.0 "beats"
+  the babble's 2.42). WER > 1 during the babble phase is expected
+  over-generation; the metric only becomes meaningful once alignment emerges.
+
+**Reasoning:**
+1. The mechanical and semantic failures may be one failure: the blank
+   collapse (steps 250–750) coincides with the rail march pinning 40–50% of
+   body weights. Correlation, not proof — option C is the test: if diversity
+   survives past step 750 with rails managed, capacity loss is implicated;
+   if it still collapses, the residual is a classic CTC shortcut needing
+   semantic countermeasures.
+2. Sustained outward pressure comes from the all-blank descent phase: the
+   CTC error signal pushes body weights in a consistent direction; at ±8–16
+   code updates the march takes ~500–750 steps (vs ~250 at ±100 codes).
+3. Option C sketch: when a layer's at-rail fraction crosses a threshold
+   (e.g. 25%), rescale value-preserving — codes >>= 1, weight_exp += 1 —
+   restoring code headroom at 1 bit of precision per rescale. Risks:
+   repeated rescales erode precision; sustained pressure may re-rail
+   quickly. Cadence/threshold need the w_rail_frac instrumentation already
+   in place.
+4. Complementary semantic levers if C alone is insufficient: integer LR
+   schedule (gs3 → gs4 after the babble phase), blank-logit suppression
+   early, larger batch.
+
+**Artifacts:** checkpoints/cleanbase-d3-128-gs3/{metrics.jsonl,history.json,
+best.pt,latest.pt} (committed), logs/cleanbase_d3_128_gs3.log.
