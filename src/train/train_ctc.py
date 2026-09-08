@@ -141,6 +141,7 @@ def run_training(cfg: argparse.Namespace) -> dict:
 
     import src.model.int_layers as _il
     _il.GRAD_DOWNSHIFT = cfg.grad_shift
+    _il.RAIL_RESCALE_THRESHOLD = cfg.rail_rescale_threshold
 
     rescale_targets = None
     if cfg.rescale_from:
@@ -300,6 +301,9 @@ def main():
     p.add_argument("--strict", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--grad-shift", type=int, default=0,
                    help="integer LR: extra right-shift on quantized gradients (0 = run-1 behavior)")
+    p.add_argument("--rail-rescale-threshold", type=float, default=0.25,
+                   help="weight-rail management (D-004): rescale tensor value-preserving "
+                        "(codes>>1, weight_exp+1) when at-rail code fraction >= threshold; 0 disables")
     p.add_argument("--rescale-from", default=None,
                    help="healthy run's metrics.jsonl; derive per-block exponent targets from it")
     p.add_argument("--branch-shift", type=int, default=0,

@@ -44,6 +44,7 @@ QUANT_FORMAT = {
     "features": "int8 per-sample max-abs quantization of normalized log-mel",
     "grads": "psto_shift quantization to 7 bits (BITWIDTH), int32 accumulation",
     "updates": "int16 subtract in weight_update (NITI-style integer SGD)",
+    "rail_rescale": "value-preserving weight re-quantization when at-rail fraction >= threshold (codes>>1, weight_exp+1)",
     "ctc_error": "float CTCLoss grad wrt int8 logits, quantized to int8 (documented compromise)",
 }
 
@@ -146,8 +147,8 @@ def grad_health(model: torch.nn.Module) -> dict:
             }
             if grad is not None:
                 w = mod.weight.detach()
-                at_rail = (w >= 127) | (w <= -128)
-                outward = ((w >= 127) & (grad < 0)) | ((w <= -128) & (grad > 0))
+                at_rail = (w >= 127) | (w <= -127)
+                outward = ((w >= 127) & (grad < 0)) | ((w <= -127) & (grad > 0))
                 entry.update({
                     "rails_frac": round(float(((grad >= 127) | (grad <= -128)).float().mean()), 6),
                     "zero_frac": round(float((grad == 0).float().mean()), 6),
@@ -155,6 +156,7 @@ def grad_health(model: torch.nn.Module) -> dict:
                     "grad_exp": int(getattr(mod, "grad_exp", 0)),
                     "w_rail_frac": round(float(at_rail.float().mean()), 6),
                     "rail_outward_frac": round(float(outward.float().mean()), 6),
+                    "rail_rescales": int(getattr(mod, "rail_rescales", 0)),
                 })
             out[name] = entry
     return out

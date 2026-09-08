@@ -23,6 +23,12 @@ CLAMP_STATS = {"enabled": False, "clamped": 0, "total": 0}
 # Acts as an integer learning rate: effective update scale = 2^-GRAD_DOWNSHIFT.
 GRAD_DOWNSHIFT = 0
 
+# Weight-rail management (D-004): when a layer's fraction of weight codes at
+# the int8 rails (>=127 or <=-128) reaches this threshold, the tensor is
+# re-quantized value-preserving (codes halved, weight_exp + 1), restoring code
+# headroom at 1 bit of precision per rescale. 0 disables.
+RAIL_RESCALE_THRESHOLD = 0.25
+
 
 def int8_clip(input: torch.Tensor, clip_val: int = QUANT_MAX) -> torch.Tensor:
     """Clamp to int8 range."""
@@ -230,13 +236,21 @@ class UpdateWeight(nn.Module):
         self.grad_int32acc: torch.Tensor
         self.act_in_exp: int
         self.err_exp: int
-    
+        self.rail_rescales = 0
+
     def weight_update(self):
         """Vanilla SGD weight update in integer domain."""
         p = self.weight
         self.grad, grad_shift = grad_calc(self.grad_int32acc, BITWIDTH)
         self.grad_exp = self.err_exp + grad_shift + self.act_in_exp
         p.data = int8_clip(p.to(torch.int16) - self.grad.to(torch.int16))
+        if RAIL_RESCALE_THRESHOLD > 0:
+            # negative rail is -127 (int8_clip keeps weights >= -127, never -128)
+            rail = ((p.data >= QUANT_MAX) | (p.data <= -QUANT_MAX)).float().mean()
+            if float(rail) >= RAIL_RESCALE_THRESHOLD:
+                p.data = torch.round(p.data.float() / 2).to(torch.int8)
+                self.weight_exp.data += 1
+                self.rail_rescales += 1
 
 
 class TiLinear(UpdateWeight):
