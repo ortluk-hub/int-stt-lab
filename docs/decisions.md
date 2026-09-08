@@ -504,3 +504,65 @@ on shaping.
 
 **Artifacts:** checkpoints/cleanbase-d3-128-bc/ (as produced),
 logs/cleanbase_d3_128_bc.log.
+
+---
+
+## D-010: bc arm verdict — collapse under an unpayable cap; error-signal quantization is the fine-gradient bottleneck
+
+**Decision:** D-009 failed on its pre-registered mode (collapse under the
+cap): uniq 1 at every eval, WER 1.000, blank ~0.97 held at the cap margin all
+run, head frozen (0% weight changes) from step 500. Per D-008's fork, shaping
+arms stop. But the fork verdict is amended by a probe finding that changes
+the recommended next arm: the int8 error signal discards ~99.9% of the
+gradient at plateau magnitudes — `float_to_int8` carries the same
+`clamp_min(1)` port artifact that D-002/D-003 found and fixed in
+`weight_quant`. Recommended next arm: NITI-faithful error scaling (option A).
+No run launched pending user decision.
+
+**Evidence (cleanbase-d3-128-bc, 3000 steps, no early stop):**
+
+| step | loss | WER | uniq | blank | head gap | rescales p/b0 |
+|---|---|---|---|---|---|---|
+| 250 | 29.5 | 1.00 | 1 | 0.969 | 1.9 | 30/30 |
+| 1000 | 45.6 | 1.00 | 1 | 0.976 | 1.9 | 138/154 |
+| 3000 | 46.7 | 1.00 | 1 | 0.966 | 1.9 | 427/490 |
+
+- Cap held mechanically (gap pinned at ~K all run; head rescales 0) but the
+  capped shortcut was still reachable: blank wins ~97% of frames at the cap
+  margin; the loss parked at the (higher) capped-plateau band 29–51.
+- **Error-signal probe** (step-750 checkpoint, real dev batch): float CTC
+  gradient 88.3% nonzero, max 0.0131 → int8 error **0.08% nonzero, max code
+  2** (err_exp −7) → head quantized grads 0.05% nonzero → **0 head weight
+  codes changed per step**. The body churns only because grad_calc
+  renormalizes the surviving scraps to full-range codes — magnitude without
+  information.
+- Root cause: `float_to_int8` (src/model/int_layers.py:113) derives the
+  exponent from `ceil(log2(max.clamp_min(1)))`; for max < 1 the clamp forces
+  exp −7, so codes = grad×2⁷ ≤ 2 for fine gradients. NITI's original
+  `TiFloatToInt8` (src/niti/ti_torch.py:341) has no clamp: bitwidth from the
+  true max (−6 for 0.013) → exp −13, codes = grad×2¹³ ≈ ±107 dense. Same
+  port-artifact family as D-002's init bug.
+
+**Interpretation:** every arm since D-003 made coarse moves fine (large
+gradients quantize well) but was functionally deaf at refinement scale —
+precisely the regime where the babble→alignment transition must happen. This
+is the first integer-transport bottleneck that is real, *not intrinsic to
+integer-only training*, and fixable in one function. The user's question
+("is the integer-only constraint making it hard to learn?") now has a
+precise answer: one quantizer bug did, and it is not NITI's design.
+
+**Next-run options (pending user decision):**
+- **A (recommended): NITI-faithful error scaling.** Fix `float_to_int8`'s
+  exponent (true max-abs, no `clamp_min(1)`), everything else at the gs3-rq
+  config (no cap, no tax) — single-variable attribution. Expected signature:
+  head keeps updating past plateau; uniq survives / WER < 1 appears. Verify
+  in smoke that err_exp (≈ −13, not −7) flows correctly through
+  grad_exp/act_in_exp bookkeeping and that update alignment (grad_exp vs
+  weight_exp) stays sane.
+- B: float control twin (same arch/data/budget, float + Adam) — the
+  integers-vs-budget discriminator; the follow-up if A fails.
+- C: capacity/budget (dim 256 / 10k steps) — fallback if fine gradients
+  alone don't unlock alignment.
+
+**Artifacts:** checkpoints/cleanbase-d3-128-bc/{metrics.jsonl,history.json,
+best.pt,latest.pt} (committed), logs/cleanbase_d3_128_bc.log.

@@ -1,28 +1,31 @@
 Who's ball: Nemo
 
-Current Task: Blank-cap arm (D-009, D-008 option A): cleanbase-d3-128-bc.
-Same config as gs3-rq (init fix + grad_shift 3 + rail-rescale 0.25 +
-stop-on-head-collapse, no blank tax) plus a permanent blank cap: blank logit
-clamped at max(non-blank)+2 codes per frame, identically in training and
-eval, implemented in IntCTCEncoder.forward (part of the model definition).
-Launched 2026-09-08 ~16:30, ETA ~18:30; monitor every 20 min.
+Current Task: Blank-cap arm (D-009/D-010) complete - failed its pre-registered
+mode (collapse under an unpayable cap: uniq 1 at every eval, blank ~0.97 at
+the cap margin, head frozen from step 500). Shaping arms stop. Five-arm arc
+committed: failed -> gs3 -> gs3-rq -> bs -> bc.
 
 Status:
-- The cap is compensation-proof by construction (D-008 lesson: the bs tax
-  was elastically paid; the cap binds exactly when blank tries to dominate
-  and over-dominance is invisible at the decision surface).
-- Unit + end-to-end smoke passed (cap semantics, capped eval decode,
-  integer-state report).
-- This arm decides D-008's fork: diversity survives the cap -> the shortcut
-  was the binding constraint; collapse under an unpayable cap -> next arm is
-  capacity/budget (10k steps and/or dim 256) and shaping arms stop.
+- DECISIVE NEW FINDING (D-010): the int8 error signal discards ~99.9% of the
+  gradient at plateau magnitudes. Probe at the step-750 bc checkpoint: float
+  CTC grad 88.3% nonzero / max 0.0131 -> int8 err 0.08% nonzero / max code 2
+  -> head receives ~zero signal (0 weight codes changed/step). Root cause is
+  float_to_int8's clamp_min(1) - the SAME port-artifact family as the D-002
+  weight-init bug; NITI's original TiFloatToInt8 has no clamp and would keep
+  the error dense (~+-107 codes at exp ~-13). Not intrinsic to integer-only
+  training - a one-function fix.
+- Answer to the standing question ("is the integer constraint the problem?"):
+  one quantizer bug was, and it is repairable; capacity/budget (210k-param
+  MLP, 12k samples seen = 0.24 epochs) remains the other suspect.
+- D-010 options pending user: A NITI-faithful error scaling (recommended),
+  B float control twin (discriminator if A fails), C capacity/budget arm.
 
 Verification Artifacts:
-- docs/decisions.md D-001..D-009 (committed)
-- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq,-bs}/ (all committed); -bc as produced
+- docs/decisions.md D-001..D-010 (committed)
+- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq,-bs,-bc}/ (all committed)
 - scripts/probe_weight_rail_freeze.py (committed)
 
-Review Notes: Morgan review of D-002..D-009 welcome while the arm runs.
-head_separation reads differently under the cap (gap bounded by K on
-blank-won frames) - within-arm comparisons only. No further runs without
-explicit user decision.
+Review Notes: Morgan review of D-002..D-010 welcome. No further runs without
+explicit user decision. For arm A: verify err_exp bookkeeping (grad_exp =
+err_exp + grad_shift + act_in_exp) and update alignment in smoke before
+launch.
