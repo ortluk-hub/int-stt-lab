@@ -454,3 +454,53 @@ larger).
 
 **Artifacts:** checkpoints/cleanbase-d3-128-bs/{metrics.jsonl,history.json,
 best.pt,latest.pt} (committed), logs/cleanbase_d3_128_bs.log.
+
+---
+
+## D-009: Launch blank-cap arm (option A) — cleanbase-d3-128-bc
+
+**Decision (user-approved, 2026-09-08):** D-008 option A. Identical config to
+gs3-rq (scale-preserving init + grad_shift 3 + rail-rescale 0.25 +
+stop-on-head-collapse; NO blank-suppress tax) plus a permanent blank cap:
+the blank logit is clamped at `max(non-blank) + K` codes per frame, K=2,
+applied identically in training and eval (implemented in
+`IntCTCEncoder.forward` via `_cap_blank` — part of the model definition, an
+NPU-trivial integer op). Single-variable attribution vs gs3-rq.
+
+**Why the cap cannot be compensated (vs the bs tax):** the cap binds exactly
+when blank tries to dominate; pushing the raw blank column higher is
+invisible at the decision surface, so the head cannot buy the shortcut. The
+softmax can never concentrate on blank (bounded within e^K ≈ 7.4× of the
+best token per frame), so the all-blank path cannot accumulate probability.
+Blank still legitimately wins frames (by up to K codes) — real CTC blank
+usage remains representable, at the documented cost of handicapping true
+silence frames for this arm. Trade-off accepted to maximize discrimination:
+if diversity dies even under an unpayable cap, the shortcut is not the
+binding constraint.
+
+**Verification:**
+- Unit: cap holds everywhere on synthetic logits (blank ≤ max_other+2,
+  saturated frames sit exactly at the cap, non-blank columns untouched, low
+  blank passes through, default off).
+- Forward smoke through the real model; 4-step training smoke (loss
+  descends); capped-eval smoke (at init blank never wins a frame);
+  integer-state report OK.
+
+**What this run tests:** D-008's fork (i) — whether a compensation-proof
+shaping term holds diversity. Success: uniq ≥ ~10 or WER < 1 through the
+step 250–1000 window AND past step 1500 (cap is permanent — no ramp-off
+event). Failure mode: collapse under the cap → fork (ii) — capacity/budget
+becomes the next arm (10k steps and/or dim 256), and we stop spending arms
+on shaping.
+
+**Watch items:**
+- uniq/WER/blank_rate from the capped decode; head gap will read ≤ ~2 on
+  blank-won frames by construction (head_separation semantics change under
+  the cap — compare within-arm only).
+- Body rescale churn (gs3-rq levels expected; head 0).
+- Raw blank-row drift: with the cap saturated, the head's blank row can
+  drift up without loss feedback — cosmetic for this arm (invisible at the
+  capped surface), noted for any future fine-tuning from this checkpoint.
+
+**Artifacts:** checkpoints/cleanbase-d3-128-bc/ (as produced),
+logs/cleanbase_d3_128_bc.log.

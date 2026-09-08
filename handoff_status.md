@@ -1,26 +1,28 @@
 Who's ball: Nemo
 
-Current Task: Blank-suppression arm (D-007/D-008) complete - failed mode (c)
-with mechanism: the constant blank tax was elastically compensated (head gap
-21 codes at step 250; loss tracked the tax amount; uniq 1 at every eval),
-and it prevented the babble phase entirely (uniq 1 at step 250 vs 212
-without suppression). Four-arm arc now committed: failed -> gs3 -> gs3-rq ->
-bs. No cheap lever tried so far prevents the all-blank shortcut.
+Current Task: Blank-cap arm (D-009, D-008 option A): cleanbase-d3-128-bc.
+Same config as gs3-rq (init fix + grad_shift 3 + rail-rescale 0.25 +
+stop-on-head-collapse, no blank tax) plus a permanent blank cap: blank logit
+clamped at max(non-blank)+2 codes per frame, identically in training and
+eval, implemented in IntCTCEncoder.forward (part of the model definition).
+Launched 2026-09-08 ~16:30, ETA ~18:30; monitor every 20 min.
 
 Status:
-- Integer mechanics are sound (init fix + grad_shift 3 + rail rescale are
-  the standard config). The binding question has narrowed to: (i) can a
-  compensation-proof shaping term hold diversity (blank-cap arm), or
-  (ii) is the babble ceiling a capacity/budget limit (210k-param MLP vs the
-  ~74M-param whisper-base accuracy anchor).
-- D-008 options pending user: A blank-cap (clamp blank at max(non-blank)+K
-  codes, train+eval, K~2-4; ~2h), B capacity/budget (10k steps and/or
-  dim 256; ~6h+), C sequential.
+- The cap is compensation-proof by construction (D-008 lesson: the bs tax
+  was elastically paid; the cap binds exactly when blank tries to dominate
+  and over-dominance is invisible at the decision surface).
+- Unit + end-to-end smoke passed (cap semantics, capped eval decode,
+  integer-state report).
+- This arm decides D-008's fork: diversity survives the cap -> the shortcut
+  was the binding constraint; collapse under an unpayable cap -> next arm is
+  capacity/budget (10k steps and/or dim 256) and shaping arms stop.
 
 Verification Artifacts:
-- docs/decisions.md D-001..D-008 (committed)
-- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq,-bs}/ (all committed)
+- docs/decisions.md D-001..D-009 (committed)
+- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq,-bs}/ (all committed); -bc as produced
 - scripts/probe_weight_rail_freeze.py (committed)
 
-Review Notes: Morgan review of D-002..D-008 welcome. No further runs
-launched without explicit user decision.
+Review Notes: Morgan review of D-002..D-009 welcome while the arm runs.
+head_separation reads differently under the cap (gap bounded by K on
+blank-won frames) - within-arm comparisons only. No further runs without
+explicit user decision.
