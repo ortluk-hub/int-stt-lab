@@ -140,3 +140,52 @@ logits → near-uniform softmax → tiny CTC grads), not a cause.
 **Artifacts:** checkpoints/cleanbase-d3-128/{metrics.jsonl,history.json,
 best.pt,latest.pt} (committed), logs/cleanbase_d3_128.log,
 scripts/probe_weight_rail_freeze.py (committed).
+
+---
+
+## D-003: Launch update-safety arm (option A) — cleanbase-d3-128-gs3
+
+**Decision (user-approved, 2026-09-08):** D-002 option A. Fix the
+`weight_quant` init-scale bug, run the clean-base config with grad_shift 3,
+record the freeze signature in instrumentation, arm `--stop-on-head-collapse`.
+Everything else identical to D-001 (depth 3, dim 128, no exponent management,
+batch 4, 50k train samples ≤8s, 3000 steps, eval every 250 on the fixed
+64-utterance dev slice).
+
+**Changes:**
+- `src/model/int_layers.py` `weight_quant`: NITI `TiFloatToInt8` semantics —
+  exponent from the true max-abs (no `clamp_min(1)`), codes = round(w × 2^-exp).
+  The `clamp_min(1)` was a port artifact (absent in the original
+  `src/niti/ti_torch.py:334` `weight_quant`) that renormalized every sub-unit
+  tensor to max|w| ≈ 1 — the D-002 root cause. Verified at seed 0: effective
+  max 0.127/0.152/0.072 vs Xavier bounds 0.128/0.153/0.072; weight_exp
+  -9/-10 (was forced -7); 0.0% of codes at rails (was 0.2% at init,
+  ~50% by step 250).
+- `src/train/instrumentation.py` `grad_health`: added per-layer
+  `max_abs_code`, `grad_exp`, `w_rail_frac`, `rail_outward_frac`
+  (the D-002 freeze signature: weight at rail + grad pointing outward).
+- Run flags: `--grad-shift 3` (quantized grad codes ±8-10, were ±75-116),
+  `--stop-on-head-collapse` (tied_frac ≥ 0.99 → stop; would have saved the
+  failed run ~30 min).
+
+**Pre-launch smoke (3 steps + eval, real dev batch):** all five layers now
+update codes every step (proj 91%, blocks 43-48%, head 582 codes), grad codes
+max 9-10, loss 374→162→83, eval path OK, integer-state report OK.
+
+**Watch items:**
+- `w_rail_frac` / `rail_outward_frac` trajectory: does the rail march recur at
+  8× smaller updates? D-002's drift estimate (~0.04 codes/step under gs3)
+  puts rails near run end if the outward bias persists. Option C (weight
+  re-quantization on rail) is the durable fix if the march recurs.
+- Body `pct_changed` > 0 at every eval — no recurrence of the freeze.
+- uniq/blank escape vs the failed run (uniq ≤3, blank 0.988 throughout).
+- Act-exponent ladders are NOT comparable across runs (init codes ~2× smaller
+  → exps ~1 lower per layer); the ablation pass criterion "head exp ≤ 20"
+  assumed the old ladder and does not apply to this arm.
+
+**Risk:** grad_shift 3 shrinks head updates too (head grad codes ±9, 0.4%
+nonzero at init). If the run underfits (loss plateaus, blank never escapes),
+that is evidence for per-layer update scaling (D-002 reasoning 4).
+
+**Artifacts:** checkpoints/cleanbase-d3-128-gs3/ (as produced),
+logs/cleanbase_d3_128_gs3.log.
