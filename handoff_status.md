@@ -1,26 +1,34 @@
 Who's ball: Nemo
 
-Current Task: Rail-rescale arm (D-005, option C): cleanbase-d3-128-gs3-rq.
-Same config as the gs3 arm plus value-preserving weight re-quantization on
-rail (at-rail >= 25% -> codes>>1, weight_exp+1, checked every step per layer).
+Current Task: Rail-rescale arm (D-005/D-006) complete. Verdict: the D-004
+capacity-loss hypothesis is REFUTED - with rails fully managed (221/354/40/9/0
+rescales across layers, rail fractions <= 19%), the run collapsed to all-blank
+identically to gs3 (uniq 212->20->8->3->1 by step 1000, WER 1.000 after).
 
 Status:
-- Unit + smoke verification passed (rescale triggers correctly, values
-  preserved within half the new quantum, no spurious early rescales).
-- Instrumentation bug found and fixed: at-rail predicate missed the -127
-  negative rail (int8_clip keeps weights >= -127); gs3 metrics undercounted
-  rails ~2x - proj's "50% plateau" was ~100% pinned. Recorded in D-005.
-- Run launched 2026-09-08 ~10:10, ETA ~11:55; monitor checks every 20 min.
-- Completion routine: trajectory summary, three-way comparison (failed run /
-  gs3 / gs3-rq), D-006 draft, artifact commit, cron cleanup.
+- Blank collapse is semantic, not mechanical: the head sits at the all-blank
+  shortcut optimum (grads ~zero, 0 rescales, exp unchanged) while body layers
+  receive consistent-sign gradients (~7.4 codes/step net outward, sustained
+  3000 steps - far beyond quantizer-bias magnitude). The rail march was a
+  symptom of that pressure all along.
+- Body weight VALUE growth (blocks.0 exp -9 -> +345) is forward-invariant
+  (act_calc renormalizes; ReLU homogeneous) - parametrization churn, invisible
+  to loss. Rail management kept in the standard config as cheap insurance.
+- Three-run arc now complete and committed: failed run (mechanism found) ->
+  gs3 (mechanics fixed, collapse persists) -> gs3-rq (rails managed, collapse
+  identical). The binding constraint is now squarely the CTC shortcut.
+
+Next decision pending user (D-006 options):
+- A (recommended): blank-logit suppression arm - integer code offset on the
+  head's blank column in the training CTC path only (-8 codes step <1000,
+  -4 <1500, 0 after); eval decodes unbiased.
+- B: integer LR schedule (gs3 -> gs5 after step ~500).
+- C: larger batch (direction unclear).
 
 Verification Artifacts:
-- docs/decisions.md D-001..D-005 (committed)
-- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq}/ (committed as produced)
+- docs/decisions.md D-001..D-006 (committed)
+- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq}/ (all committed)
 - scripts/probe_weight_rail_freeze.py (committed)
 
-Review Notes: Morgan review of D-002..D-005 welcome while the arm runs.
-The gs3-rq run directly tests D-004's capacity-loss hypothesis: if uniq
-survives past step ~750 with rails managed, the rail march is the blank-
-collapse driver; if not, semantic levers next (integer LR schedule, blank
-suppression, larger batch). No further runs without user decision.
+Review Notes: Morgan review of D-002..D-006 welcome. No further runs launched
+without explicit user decision.

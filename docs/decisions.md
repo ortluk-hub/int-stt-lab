@@ -296,3 +296,65 @@ rail_rescales / weight_exps instrumentation makes the cadence visible per eval.
 
 **Artifacts:** checkpoints/cleanbase-d3-128-gs3-rq/ (as produced),
 logs/cleanbase_d3_128_gs3_rq.log.
+
+---
+
+## D-006: gs3-rq verdict — capacity hypothesis refuted; blank collapse is semantic
+
+**Decision:** D-004's capacity-loss hypothesis is refuted by direct test: with
+rails fully managed (never pinned), the run collapsed identically to gs3
+(uniq 212→20→8→3→1 over steps 250–1000, WER 1.000 from step 500 on). Rail
+management stays in the standard config — it prevents pinning at zero cost
+when pressure is absent (head: 0 rescales) — but it is symptom treatment.
+The next arm must target the all-blank collapse semantically; recommended:
+blank-logit suppression (option A below). No run launched pending user
+decision.
+
+**Evidence (cleanbase-d3-128-gs3-rq, 3000 steps, no early stop):**
+
+| step | loss | WER | uniq | rescales p/b0/b1/b2/h | weight_exp p/b0 |
+|---|---|---|---|---|---|
+| 250 | 10.2 | 2.42 | 212 | 0/0/0/0/0 | -9/-9 |
+| 500 | 8.0 | 1.00 | 20 | 1/0/0/0/0 | -8/-9 |
+| 750 | 8.4 | 1.00 | 8 | 10/7/1/0/0 | 1/-2 |
+| 1000 | 8.0 | 1.00 | 3 | 26/35/5/1/0 | 17/26 |
+| 1500 | 11.9 | 1.00 | 1 | 71/108/14/3/0 | 62/99 |
+| 2000 | 9.6 | 1.00 | 1 | 119/189/23/5/0 | 110/180 |
+| 3000 | 11.1 | 1.00 | 1 | **221/354/40/9/0** | **212/345** |
+
+- Identical collapse timeline to gs3 despite zero pinning: rail fractions held
+  ≤ ~19% throughout (gs3's proj was ~100% pinned by step 2500).
+- Rescale cadence quantifies the pressure: blocks.0 averaged ~63 codes of
+  outward drift per rescale cycle ≈ **7.4 codes/step net, sustained for
+  3000 steps**. Too large for quantizer bias — psto_shift bias is a ±1-code
+  effect on small accumulators; magnitude analysis rules out rounding bias
+  as the driver. Body layers receive near-consistent-sign gradients through
+  the entire all-blank phase.
+- Head completely immune: 0 rescales, weight_exp −10 unchanged, final
+  gap 3.35 codes / tied 1.7%.
+- Structural insight: body weight VALUE growth (proj exp −9→+212, blocks.0
+  −9→+345) is **forward-invariant** — act_calc renormalizes activations per
+  layer and ReLU is positive-homogeneous, so per-layer weight scale cancels;
+  the drift never appears in the loss (band 8–13, same as gs3's 7.5–14).
+  The march is parametrization churn along the degenerate manifold, not a
+  cause of the semantic state.
+
+**Interpretation:** babble phase (~step 250) → all-blank shortcut discovered
+(steps 300–750) → degenerate phase: the head sits at the shortcut optimum
+(its grads ~zero), the body keeps receiving consistent-sign gradients, and
+nothing pushes the model off the shortcut. Rail mechanics are no longer the
+binding constraint.
+
+**Next-run options (pending user decision):**
+- **A (recommended): blank-logit suppression arm** — subtract an integer code
+  offset from the head's blank-column logits in the training CTC path only
+  (e.g. −8 codes for step <1000, −4 for <1500, 0 after; eval decodes with
+  unbiased logits). Directly blocks the shortcut during the babble/alignment
+  phase; integer-only, cheap, standard CTC anti-collapse practice.
+- B: integer LR schedule (gs3 → gs5 after step ~500) — slows everything;
+  does not discriminate shortcut vs alignment learning.
+- C: larger batch — direction unclear (if the pressure is the true gradient,
+  less noise may deepen the shortcut).
+
+**Artifacts:** checkpoints/cleanbase-d3-128-gs3-rq/{metrics.jsonl,history.json,
+best.pt,latest.pt} (committed), logs/cleanbase_d3_128_gs3_rq.log.
