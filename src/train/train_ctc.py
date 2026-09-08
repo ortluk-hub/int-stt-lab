@@ -51,15 +51,23 @@ def align_feature_exps(batch: dict) -> tuple[torch.Tensor, int]:
 
 def ctc_error_signal(logits_int8: torch.Tensor, logits_exp: int, targets: torch.Tensor,
                      input_lens: torch.Tensor, target_lens: torch.Tensor,
-                     blank_id: int) -> tuple[float, torch.Tensor, int]:
+                     blank_id: int, blank_suppress: int = 0) -> tuple[float, torch.Tensor, int]:
     """CTC loss value + grad w.r.t. logits, quantized to int8 for the integer chain.
 
     The raw int8 head outputs are used directly as logits (the exponent is
     intentionally dropped): softmax temperature is absorbed by the integer
     update rule, since UpdateWeight.weight_update renormalizes gradients to
     BITWIDTH magnitude via grad_calc (NITI idiom).
+
+    blank_suppress subtracts a fixed code offset from the blank column before
+    the loss (training-time objective shaping against the all-blank shortcut;
+    D-006 option A). The shift is constant, so the returned gradient is
+    unchanged by the chain rule; eval decodes unbiased logits.
     """
-    logits_f = logits_int8.float().requires_grad_(True)  # (B, T', V)
+    logits_f = logits_int8.float()
+    if blank_suppress:
+        logits_f[..., blank_id] -= blank_suppress
+    logits_f.requires_grad_(True)  # (B, T', V)
     log_probs = F.log_softmax(logits_f, dim=-1).transpose(0, 1)  # (T', B, V)
     per_sample = F.ctc_loss(log_probs, targets, input_lens, target_lens,
                             blank=blank_id, zero_infinity=True, reduction="none")
@@ -75,6 +83,17 @@ def ctc_error_signal(logits_int8: torch.Tensor, logits_exp: int, targets: torch.
         "sample_sum_mean": round(float(per_sample.mean()), 4),
     }
     return float(loss.detach()), components, nonfinite, err_int8, err_exp
+
+
+def blank_suppress_offset(step: int, peak: int, full_until: int, zero_after: int) -> int:
+    """Training-step blank-suppression schedule: peak, then half, then off."""
+    if peak <= 0:
+        return 0
+    if step < full_until:
+        return peak
+    if step < zero_after:
+        return max(peak // 2, 1)
+    return 0
 
 
 def ctc_targets(batch: dict) -> tuple[torch.Tensor, torch.Tensor]:
@@ -212,7 +231,9 @@ def run_training(cfg: argparse.Namespace) -> dict:
         in_lens = model.out_lengths(batch["feature_lens"])
         targets, target_lens = ctc_targets(batch)
         loss, loss_components, nonfinite, err, err_exp = ctc_error_signal(
-            logits, logits_exp, targets, in_lens, target_lens, cfg.blank_id)
+            logits, logits_exp, targets, in_lens, target_lens, cfg.blank_id,
+            blank_suppress=blank_suppress_offset(
+                step, cfg.blank_suppress, cfg.blank_suppress_steps, cfg.blank_suppress_end))
         assert err.dtype == torch.int8
 
         model.backward((err, err_exp))
@@ -246,6 +267,13 @@ def run_training(cfg: argparse.Namespace) -> dict:
                 tok=tok, model=model, prev_weights=prev_weights,
                 probe_stats=probe.stats, meta=meta)
             record["integer_health"]["head_separation"] = ev["head_sep"]
+            record["blank_suppress"] = {
+                "offset": blank_suppress_offset(
+                    step, cfg.blank_suppress, cfg.blank_suppress_steps, cfg.blank_suppress_end),
+                "peak": cfg.blank_suppress,
+                "full_until": cfg.blank_suppress_steps,
+                "zero_after": cfg.blank_suppress_end,
+            }
             inst.append_jsonl(metrics_path, record)
             window_start = time.time()
             window_samples = 0
@@ -304,6 +332,13 @@ def main():
     p.add_argument("--rail-rescale-threshold", type=float, default=0.25,
                    help="weight-rail management (D-004): rescale tensor value-preserving "
                         "(codes>>1, weight_exp+1) when at-rail code fraction >= threshold; 0 disables")
+    p.add_argument("--blank-suppress", type=int, default=0,
+                   help="anti-collapse objective shaping (D-006 option A): code offset subtracted "
+                        "from the head's blank-column logits in the training CTC loss; 0 disables")
+    p.add_argument("--blank-suppress-steps", type=int, default=1000,
+                   help="full blank-suppress offset until this step")
+    p.add_argument("--blank-suppress-end", type=int, default=1500,
+                   help="half offset until this step, zero after")
     p.add_argument("--rescale-from", default=None,
                    help="healthy run's metrics.jsonl; derive per-block exponent targets from it")
     p.add_argument("--branch-shift", type=int, default=0,
