@@ -16,9 +16,21 @@ QUANT_MAX = 127
 QUANT_MIN = -128
 
 
+# Clamp accounting for instrumentation (enabled during eval/record windows only)
+CLAMP_STATS = {"enabled": False, "clamped": 0, "total": 0}
+
+# Extra right-shift applied to quantized gradients in grad_calc.
+# Acts as an integer learning rate: effective update scale = 2^-GRAD_DOWNSHIFT.
+GRAD_DOWNSHIFT = 0
+
+
 def int8_clip(input: torch.Tensor, clip_val: int = QUANT_MAX) -> torch.Tensor:
     """Clamp to int8 range."""
-    return torch.clamp(input, -clip_val, clip_val).to(torch.int8)
+    clamped = torch.clamp(input, -clip_val, clip_val)
+    if CLAMP_STATS["enabled"]:
+        CLAMP_STATS["total"] += input.numel()
+        CLAMP_STATS["clamped"] += int((clamped != input).sum())
+    return clamped.to(torch.int8)
 
 
 def round_shift(input: torch.Tensor, shift: int) -> torch.Tensor:
@@ -154,9 +166,13 @@ def grad_calc(int32_acc: torch.Tensor, mu: int) -> Tuple[torch.Tensor, int]:
     if int32_bitwidth == 0:
         return torch.zeros_like(int32_acc, dtype=torch.int8), 0
     elif shift < 1:
-        return int32_acc.to(torch.int8), 0
+        grad = int32_acc.to(torch.int8)
+        shift = 0
     else:
-        return GRAD_ROUND_METHOD(int32_acc, int32_bitwidth - mu), shift
+        grad = GRAD_ROUND_METHOD(int32_acc, shift)
+    if GRAD_DOWNSHIFT > 0:
+        grad = round_shift(grad.to(torch.int32), GRAD_DOWNSHIFT).to(torch.int8)
+    return grad, shift
 
 
 def roundoff4(size: int) -> int:

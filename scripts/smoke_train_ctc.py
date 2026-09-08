@@ -37,7 +37,7 @@ def main():
         dim=192, depth=4, batch=2, steps=60,
         max_duration=6.0, max_train_samples=512,
         eval_every=30, eval_samples=16, log_every=10,
-        workers=2, threads=4, seed=0, blank_id=4, strict=True, resume=False,
+        workers=2, threads=4, seed=0, blank_id=4, strict=True, resume=False, grad_shift=0,
     )
     history = run_training(cfg)
 

@@ -30,6 +30,7 @@ from src.data.asr_dataset import ASRDataset
 from src.eval.wer import greedy_decode_ids, batch_metrics
 from src.model.int_ctc_encoder import IntCTCEncoder
 from src.model.int_layers import float_to_int8, int8_to_float
+from src.train import instrumentation as inst
 
 DEFAULT_CLIPS = "/home/ortluk/ortluk-hub/common-voice-26-en-recovered/cv-corpus-26.0-2026-06-12/en"
 
@@ -60,11 +61,20 @@ def ctc_error_signal(logits_int8: torch.Tensor, logits_exp: int, targets: torch.
     """
     logits_f = logits_int8.float().requires_grad_(True)  # (B, T', V)
     log_probs = F.log_softmax(logits_f, dim=-1).transpose(0, 1)  # (T', B, V)
-    loss = F.ctc_loss(log_probs, targets, input_lens, target_lens,
-                      blank=blank_id, zero_infinity=True)
+    per_sample = F.ctc_loss(log_probs, targets, input_lens, target_lens,
+                            blank=blank_id, zero_infinity=True, reduction="none")
+    per_token = per_sample / target_lens
+    loss = per_token.mean()  # identical to reduction='mean'
     grad, = torch.autograd.grad(loss, logits_f)
+    nonfinite = int(torch.isnan(grad).sum()) + int(torch.isinf(grad).sum())
     err_int8, err_exp = float_to_int8(grad)
-    return float(loss.detach()), err_int8, err_exp
+    components = {
+        "mean": round(float(loss.detach()), 4),
+        "min": round(float(per_token.min()), 4),
+        "max": round(float(per_token.max()), 4),
+        "sample_sum_mean": round(float(per_sample.mean()), 4),
+    }
+    return float(loss.detach()), components, nonfinite, err_int8, err_exp
 
 
 def ctc_targets(batch: dict) -> tuple[torch.Tensor, torch.Tensor]:
@@ -80,24 +90,37 @@ def ctc_targets(batch: dict) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 @torch.no_grad()
-def evaluate(model: IntCTCEncoder, dataset: ASRDataset, n_samples: int, blank_id: int) -> dict:
+def evaluate(model: IntCTCEncoder, dataset: ASRDataset, n_samples: int, blank_id: int,
+             n_pairs: int = 8) -> dict:
+    """Fixed-slice eval: WER/CER + raw materials for token/pair diagnostics."""
     idxs = list(range(min(n_samples, len(dataset))))
-    hyps, refs = [], []
+    hyps, refs, frame_argmax, decoded_ids = [], [], [], []
     for i in idxs:
         item = dataset[i]
         feats = torch.from_numpy(item["features"]).unsqueeze(0)
         logits, exp = model((feats, int(item["feature_exp"])))
-        ids = greedy_decode_ids(logits.float(), torch.tensor([logits.size(1)]), blank_id)[0]
-        ids = [t for t in ids if t != blank_id]
+        argmax = logits[0].argmax(dim=-1).tolist()
+        ids = [t for t in greedy_decode_ids(logits.float(), torch.tensor([logits.size(1)]),
+                                            blank_id)[0] if t != blank_id]
+        frame_argmax.append(argmax)
+        decoded_ids.append(ids)
         hyps.append(dataset.tokenizer.decode(ids))
         refs.append(item["transcript"])
-    return batch_metrics(hyps, refs)
+    m = batch_metrics(hyps, refs)
+    m["slice_sha"] = inst.sha256_obj([dataset.entries[i]["audio_path"] for i in idxs])
+    m["decode"] = "greedy-argmax-collapse-repeat-drop-blank"
+    pairs = [{"ref": refs[i], "hyp": hyps[i]}
+             for i in range(min(n_pairs, len(idxs)))]
+    return {"metrics": m, "pairs": pairs, "frame_argmax": frame_argmax,
+            "decoded_ids": decoded_ids}
 
 
 def run_training(cfg: argparse.Namespace) -> dict:
     torch.manual_seed(cfg.seed)
     torch.set_num_threads(cfg.threads)
-    rng = torch.random.get_rng_state()
+
+    import src.model.int_layers as _il
+    _il.GRAD_DOWNSHIFT = cfg.grad_shift
 
     train_ds = ASRDataset(cfg.train_manifest, cfg.feature_dir_train, cfg.tokenizer, cfg.stats,
                           clips_dir=cfg.clips_dir, max_duration=cfg.max_duration)
@@ -125,8 +148,26 @@ def run_training(cfg: argparse.Namespace) -> dict:
         start_step = state["step"]
         print(f"resumed from {latest} at step {start_step}", flush=True)
 
+    meta = {
+        "manifest_sha256": inst.sha256_file(cfg.train_manifest),
+        "dev_manifest_sha256": inst.sha256_file(cfg.dev_manifest),
+        "tokenizer_sha256": inst.sha256_file(cfg.tokenizer),
+        "stats_sha256": inst.sha256_file(cfg.stats),
+        "config_sha256": inst.sha256_obj(vars(cfg)),
+        "seed": cfg.seed,
+        "quant": inst.QUANT_FORMAT,
+        "ckpt_latest": str(latest.resolve()),
+        "ckpt_best": str((ckpt_dir / "best.pt").resolve()),
+        "torch": torch.__version__,
+    }
+
     history = {"losses": [], "evals": []}
     best_wer = float("inf")
+    prev_weights: dict | None = None
+    window_start = time.time()
+    window_samples = 0
+    probe = inst.ActivationProbe(model)
+    metrics_path = ckpt_dir / "metrics.jsonl"
     data_iter = iter(loader)
     t_start = time.time()
 
@@ -143,11 +184,12 @@ def run_training(cfg: argparse.Namespace) -> dict:
 
         in_lens = model.out_lengths(batch["feature_lens"])
         targets, target_lens = ctc_targets(batch)
-        loss, err, err_exp = ctc_error_signal(logits, logits_exp, targets, in_lens,
-                                              target_lens, cfg.blank_id)
+        loss, loss_components, nonfinite, err, err_exp = ctc_error_signal(
+            logits, logits_exp, targets, in_lens, target_lens, cfg.blank_id)
         assert err.dtype == torch.int8
 
         model.backward((err, err_exp))
+        window_samples += cfg.batch
 
         if cfg.strict:
             r = model.integer_state_report()
@@ -161,10 +203,28 @@ def run_training(cfg: argparse.Namespace) -> dict:
                   f"({el / (step - start_step):.2f} s/step)", flush=True)
 
         if step % cfg.eval_every == 0 or step == cfg.steps:
-            m = evaluate(model, dev_ds, cfg.eval_samples, cfg.blank_id)
-            history["evals"].append({"step": step, **m})
+            inst.reset_clamp()
+            inst.enable_clamp_tracking(True)
+            ev = evaluate(model, dev_ds, cfg.eval_samples, cfg.blank_id)
+            inst.enable_clamp_tracking(False)
+            m = ev["metrics"]
+            tok = inst.token_diag(ev["frame_argmax"], ev["decoded_ids"], cfg.blank_id)
+            record = inst.build_record(
+                step=step, elapsed_s=time.time() - t_start,
+                window_s=time.time() - window_start, samples=window_samples,
+                optimizer_updates=step, loss_components=loss_components,
+                nonfinite_grad_count=nonfinite, eval_metrics=m, pairs=ev["pairs"],
+                tok=tok, model=model, prev_weights=prev_weights,
+                probe_stats=probe.stats, meta=meta)
+            inst.append_jsonl(metrics_path, record)
+            window_start = time.time()
+            window_samples = 0
+            prev_weights = inst.snapshot_weights(model)
+
+            history["evals"].append({"step": step, **m, **tok})
             print(f"  eval step {step}: WER {m['wer']:.3f} CER {m['cer']:.3f} "
-                  f"(n={m['n']})", flush=True)
+                  f"blank_rate {tok['blank_rate']:.3f} "
+                  f"(n={m['n']}) -> {metrics_path}", flush=True)
             torch.save({"model": model.state_dict(), "step": step, "rng": torch.random.get_rng_state(),
                         "config": vars(cfg), "metrics": m}, latest)
             if m["wer"] < best_wer:
@@ -203,6 +263,8 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--blank-id", type=int, default=4)
     p.add_argument("--strict", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--grad-shift", type=int, default=0,
+                   help="integer LR: extra right-shift on quantized gradients (0 = run-1 behavior)")
     p.add_argument("--resume", action="store_true")
     run_training(p.parse_args())
 
