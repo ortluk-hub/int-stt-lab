@@ -17,23 +17,65 @@ import torch
 import torch.nn as nn
 from typing import Tuple
 
-from .int_layers import TiLinear, TiReLU
+from .int_layers import TiLinear, TiReLU, round_shift
 from .int_conformer import IntResidual
 
 
-class IntResidualMLPBlock(nn.Module):
-    """out = IntResidual.add(x, ReLU(Linear(x))). Backward copies err to both branches."""
+class IntRescale(nn.Module):
+    """BFP-style exponent recentering at a block boundary (no learnable state).
 
-    def __init__(self, dim: int):
+    When the incoming activation exponent exceeds target_exp, the codes are
+    right-shifted down and the exponent pinned to target_exp — i.e. the value
+    is deliberately divided by 2^(exp - target) to keep it in the healthy
+    window observed in a reference run. act_calc renormalizes codes to 7 bits
+    each layer anyway, so downstream layers absorb the rescale.
+
+    Backward: error passes through unchanged. The forward scale factor is
+    intentionally not inverted; err_calc renormalizes error magnitudes per
+    layer (NITI idiom), so the scale mismatch is absorbed there.
+    """
+
+    def __init__(self, target_exp: int):
+        super().__init__()
+        self.target = int(target_exp)
+
+    def forward(self, input: Tuple[torch.Tensor, int]) -> Tuple[torch.Tensor, int]:
+        act, exp = input
+        shift = exp - self.target
+        if shift > 0:
+            act = round_shift(act.to(torch.int32), shift)
+            exp = self.target
+        return act, exp
+
+    def backward(self, input: Tuple[torch.Tensor, int]) -> Tuple[torch.Tensor, int]:
+        return input
+
+
+class IntResidualMLPBlock(nn.Module):
+    """out = IntResidual.add(x, ReLU(Linear(x))). Backward copies err to both branches.
+
+    branch_shift > 0 scales the residual branch by 2^-branch_shift before the
+    add (fixed LayerScale substitute, no learnable state). rescale_target
+    pins the block-boundary exponent (see IntRescale).
+    """
+
+    def __init__(self, dim: int, rescale_target: int | None = None, branch_shift: int = 0):
         super().__init__()
         self.linear = TiLinear(dim, dim)
         self.relu = TiReLU()
+        self.branch_shift = int(branch_shift)
+        self.rescale = IntRescale(rescale_target) if rescale_target is not None else None
 
     def forward(self, input: Tuple[torch.Tensor, int]) -> Tuple[torch.Tensor, int]:
         x, exp = input
         self.residual_in = (x, exp)
         y, y_exp = self.relu(self.linear((x, exp)))
-        return IntResidual.add(self.residual_in, (y, y_exp))
+        if self.branch_shift > 0:
+            y = (y.to(torch.int16) >> self.branch_shift).to(torch.int8)  # value * 2^-shift
+        out = IntResidual.add(self.residual_in, (y, y_exp))
+        if self.rescale is not None:
+            out = self.rescale(out)
+        return out
 
     def backward(self, input: Tuple[torch.Tensor, int]) -> Tuple[torch.Tensor, int]:
         err, err_exp = input
@@ -62,6 +104,8 @@ class IntCTCEncoder(nn.Module):
         depth: int = 6,
         vocab: int = 1024,
         blank_id: int = 4,
+        rescale_targets: list[int] | None = None,
+        branch_shift: int = 0,
     ):
         super().__init__()
         self.n_mels = n_mels
@@ -72,7 +116,13 @@ class IntCTCEncoder(nn.Module):
         self.blank_id = blank_id
 
         self.proj = TiLinear(n_mels * stack, dim)
-        self.blocks = nn.ModuleList([IntResidualMLPBlock(dim) for _ in range(depth)])
+        assert rescale_targets is None or len(rescale_targets) == depth, \
+            f"need one rescale target per block, got {len(rescale_targets)} for depth {depth}"
+        self.blocks = nn.ModuleList([
+            IntResidualMLPBlock(dim,
+                                rescale_target=rescale_targets[i] if rescale_targets else None,
+                                branch_shift=branch_shift)
+            for i in range(depth)])
         self.head = TiLinear(dim, vocab)  # act_calc scaling keeps int32 safe in int8 + exp
 
     def out_lengths(self, feature_lens: torch.Tensor) -> torch.Tensor:

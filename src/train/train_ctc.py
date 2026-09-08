@@ -95,11 +95,15 @@ def evaluate(model: IntCTCEncoder, dataset: ASRDataset, n_samples: int, blank_id
     """Fixed-slice eval: WER/CER + raw materials for token/pair diagnostics."""
     idxs = list(range(min(n_samples, len(dataset))))
     hyps, refs, frame_argmax, decoded_ids = [], [], [], []
+    gap_sum, gap_tied, gap_n = 0.0, 0, 0
     for i in idxs:
         item = dataset[i]
         feats = torch.from_numpy(item["features"]).unsqueeze(0)
         logits, exp = model((feats, int(item["feature_exp"])))
         argmax = logits[0].argmax(dim=-1).tolist()
+        top2 = logits[0].topk(2, dim=-1).values
+        gaps = top2[:, 0] - top2[:, 1]
+        gap_sum += float(gaps.float().sum()); gap_tied += int((gaps == 0).sum()); gap_n += gaps.numel()
         ids = [t for t in greedy_decode_ids(logits.float(), torch.tensor([logits.size(1)]),
                                             blank_id)[0] if t != blank_id]
         frame_argmax.append(argmax)
@@ -111,8 +115,24 @@ def evaluate(model: IntCTCEncoder, dataset: ASRDataset, n_samples: int, blank_id
     m["decode"] = "greedy-argmax-collapse-repeat-drop-blank"
     pairs = [{"ref": refs[i], "hyp": hyps[i]}
              for i in range(min(n_pairs, len(idxs)))]
+    head_sep = {"mean_gap_codes": round(gap_sum / max(gap_n, 1), 4),
+                "tied_frac": round(gap_tied / max(gap_n, 1), 6)}
     return {"metrics": m, "pairs": pairs, "frame_argmax": frame_argmax,
-            "decoded_ids": decoded_ids}
+            "decoded_ids": decoded_ids, "head_sep": head_sep}
+
+
+def derive_rescale_targets(metrics_jsonl: str, depth: int) -> list[int]:
+    """Per-block exponent targets derived from a healthy reference run's record.
+
+    Uses the settled post-ReLU activation exponent of each reference block
+    (blocks.N.relu), extending with the last observed value for deeper nets.
+    """
+    import json as _json
+    lines = open(metrics_jsonl).readlines()
+    act = _json.loads(lines[-1])["integer_health"]["activation_stats"]
+    ref = [v["exp"] for k, v in act.items() if k.endswith(".relu")]
+    assert ref, f"no blocks.N.relu entries in {metrics_jsonl}"
+    return [ref[i] if i < len(ref) else ref[-1] for i in range(depth)]
 
 
 def run_training(cfg: argparse.Namespace) -> dict:
@@ -121,6 +141,11 @@ def run_training(cfg: argparse.Namespace) -> dict:
 
     import src.model.int_layers as _il
     _il.GRAD_DOWNSHIFT = cfg.grad_shift
+
+    rescale_targets = None
+    if cfg.rescale_from:
+        rescale_targets = derive_rescale_targets(cfg.rescale_from, cfg.depth)
+        print(f"rescale targets (derived from {cfg.rescale_from}): {rescale_targets}", flush=True)
 
     train_ds = ASRDataset(cfg.train_manifest, cfg.feature_dir_train, cfg.tokenizer, cfg.stats,
                           clips_dir=cfg.clips_dir, max_duration=cfg.max_duration)
@@ -133,7 +158,8 @@ def run_training(cfg: argparse.Namespace) -> dict:
     dev_ds = ASRDataset(cfg.dev_manifest, cfg.feature_dir_dev, cfg.tokenizer, cfg.stats,
                         max_duration=cfg.max_duration)
 
-    model = IntCTCEncoder(dim=cfg.dim, depth=cfg.depth, blank_id=cfg.blank_id)
+    model = IntCTCEncoder(dim=cfg.dim, depth=cfg.depth, blank_id=cfg.blank_id,
+                          rescale_targets=rescale_targets, branch_shift=cfg.branch_shift)
     report = model.integer_state_report()
     assert report["ok"], report
 
@@ -216,6 +242,7 @@ def run_training(cfg: argparse.Namespace) -> dict:
                 nonfinite_grad_count=nonfinite, eval_metrics=m, pairs=ev["pairs"],
                 tok=tok, model=model, prev_weights=prev_weights,
                 probe_stats=probe.stats, meta=meta)
+            record["integer_health"]["head_separation"] = ev["head_sep"]
             inst.append_jsonl(metrics_path, record)
             window_start = time.time()
             window_samples = 0
@@ -265,6 +292,10 @@ def main():
     p.add_argument("--strict", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--grad-shift", type=int, default=0,
                    help="integer LR: extra right-shift on quantized gradients (0 = run-1 behavior)")
+    p.add_argument("--rescale-from", default=None,
+                   help="healthy run's metrics.jsonl; derive per-block exponent targets from it")
+    p.add_argument("--branch-shift", type=int, default=0,
+                   help="scale residual branch by 2^-k before the add (0 = off)")
     p.add_argument("--resume", action="store_true")
     run_training(p.parse_args())
 
