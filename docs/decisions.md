@@ -249,3 +249,50 @@ for the blank collapse.
 
 **Artifacts:** checkpoints/cleanbase-d3-128-gs3/{metrics.jsonl,history.json,
 best.pt,latest.pt} (committed), logs/cleanbase_d3_128_gs3.log.
+
+---
+
+## D-005: Launch rail-rescale arm (option C) — cleanbase-d3-128-gs3-rq
+
+**Decision (user-approved, 2026-09-08):** Option C on top of the gs3 arm.
+Identical config to cleanbase-d3-128-gs3 (scale-preserving init + grad_shift
+3, D-001 clean-base config) plus value-preserving weight re-quantization on
+rail: when a layer's at-rail code fraction ≥ 25% (checked every training
+step, per layer), codes are halved (round-to-nearest) and weight_exp += 1 —
+value-preserving within half of the new quantum, restoring code headroom at
+1 bit of resolution per rescale. Single-variable attribution vs the gs3 arm.
+
+**Instrumentation fix (found while unit-testing the rescale):** the at-rail
+predicate used (>=127)|(<=-128), but int8_clip keeps weights in [-127, 127],
+so the negative rail (-127) was never counted. The gs3 arm's recorded
+w_rail_frac / rail_outward_frac undercounted by the negative half — proj's
+"plateau at 50%" was actually ~100% of codes pinned on both rails. Fixed in
+weight_update and grad_health (probe script already used -127). Historical
+metrics not rewritten; gs3 comparisons in D-004 should be read with rails at
+~2x the recorded fraction.
+
+**Verification:**
+- Unit: 30% synthetic rails → one rescale, rails → 0%, exp -9→-8, max value
+  error 1 old LSB (half the new quantum), int8 dtype preserved.
+- Smoke (5 steps + eval, real dev batch): loss descends, no spurious early
+  rescales (init at 0% rails), rail_rescales in the record schema,
+  integer-state report OK.
+
+**What this run tests (D-004 hypothesis):** if diversity survives past step
+~750 with rails managed, capacity loss is implicated as the blank-collapse
+driver; if it still collapses, the residual is a classic CTC shortcut →
+semantic levers (integer LR schedule, blank suppression, larger batch).
+
+**Watch items:**
+- rail_rescales per layer and cadence — steady accumulation means sustained
+  outward pressure; watch weight_exps for unbounded value growth.
+- uniq/blank/WER vs the gs3 arm's 212→20→2→1 collapse (steps 250–1000).
+- Body pct_changed never reaching 0.
+- Rescales shift weight_exp +1 → act exps shift +1; within-run comparisons only.
+
+**Risks:** repeated rescales erode weight resolution 1 bit each; a
+pathological pressure regime could rescale every few hundred steps. The
+rail_rescales / weight_exps instrumentation makes the cadence visible per eval.
+
+**Artifacts:** checkpoints/cleanbase-d3-128-gs3-rq/ (as produced),
+logs/cleanbase_d3_128_gs3_rq.log.

@@ -1,27 +1,26 @@
 Who's ball: Nemo
 
-Current Task: Update-safety arm (D-003/D-004) complete. cleanbase-d3-128-gs3
-ran the full 3000 steps: mechanics fixed (all layers trainable ~10x longer,
-head healthy throughout, no tie-up), but the run still ends blank-collapsed.
-The step-250 diversity window (uniq 212, phonetic babble) dies exactly as
-the weight-rail march re-pins the body (w_rail 0.1% -> 43% over steps
-250-750; body frozen again by step 2500).
+Current Task: Rail-rescale arm (D-005, option C): cleanbase-d3-128-gs3-rq.
+Same config as the gs3 arm plus value-preserving weight re-quantization on
+rail (at-rail >= 25% -> codes>>1, weight_exp+1, checked every step per layer).
 
 Status:
-- D-004 drafted in docs/decisions.md: rail-march capacity loss is now the
-  primary suspect for BOTH failures; option C (weight re-quantization on
-  rail, value-preserving codes>>1 + weight_exp+=1) is the recommended next
-  arm and the direct test of that hypothesis.
-- Run artifacts committed: checkpoints/cleanbase-d3-128-gs3/
-- best.pt caveat: best-by-WER saved a collapsed state; WER is meaningless
-  during the babble phase (over-generation > 1.0).
+- Unit + smoke verification passed (rescale triggers correctly, values
+  preserved within half the new quantum, no spurious early rescales).
+- Instrumentation bug found and fixed: at-rail predicate missed the -127
+  negative rail (int8_clip keeps weights >= -127); gs3 metrics undercounted
+  rails ~2x - proj's "50% plateau" was ~100% pinned. Recorded in D-005.
+- Run launched 2026-09-08 ~10:10, ETA ~11:55; monitor checks every 20 min.
+- Completion routine: trajectory summary, three-way comparison (failed run /
+  gs3 / gs3-rq), D-006 draft, artifact commit, cron cleanup.
 
 Verification Artifacts:
-- docs/decisions.md D-001..D-004 (committed)
-- checkpoints/cleanbase-d3-128-gs3/ and cleanbase-d3-128/ (both committed)
+- docs/decisions.md D-001..D-005 (committed)
+- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq}/ (committed as produced)
 - scripts/probe_weight_rail_freeze.py (committed)
 
-Review Notes: Morgan review of D-002..D-004 welcome. Next run pending user
-decision: option C (rail re-quantization) recommended; complementary levers
-if C alone fails: integer LR schedule, blank-logit suppression, larger batch.
-No further runs launched without explicit user confirmation.
+Review Notes: Morgan review of D-002..D-005 welcome while the arm runs.
+The gs3-rq run directly tests D-004's capacity-loss hypothesis: if uniq
+survives past step ~750 with rails managed, the rail march is the blank-
+collapse driver; if not, semantic levers next (integer LR schedule, blank
+suppression, larger batch). No further runs without user decision.
