@@ -1,0 +1,527 @@
+{
+ "summary": {
+  "model": "ggml-base.bin",
+  "snr": "clean",
+  "n": 64,
+  "wer": 0.2464,
+  "cer": 0.0998,
+  "rtf_internal": 0.8947,
+  "rtf_wall_avg": 0.9322,
+  "audio_s": 397.0,
+  "infer_s": 355.2
+ },
+ "results": [
+  {
+   "wav": "common_voice_en_41826133.wav",
+   "hyp": "redsoft a competitor to robinhood criticized its operation",
+   "ref": "radsoft a competitor to robin hood criticised its operation",
+   "duration": 7.488,
+   "wall_s": 5.013399839401245,
+   "infer_ms": 4665.41
+  },
+  {
+   "wav": "common_voice_en_41826149.wav",
+   "hyp": "at mirzbe and its name north channel",
+   "ref": "at mirs bay end it is named north channel",
+   "duration": 4.248,
+   "wall_s": 4.723787546157837,
+   "infer_ms": 4508.11
+  },
+  {
+   "wav": "common_voice_en_155784.wav",
+   "hyp": "and don't forget this",
+   "ref": "and dont forget these",
+   "duration": 3.624,
+   "wall_s": 4.531182765960693,
+   "infer_ms": 4285.33
+  },
+  {
+   "wav": "common_voice_en_32675093.wav",
+   "hyp": "i thought the revolution had to go through your own head",
+   "ref": "i thought the revolution had to go through your own head",
+   "duration": 5.94,
+   "wall_s": 4.922739744186401,
+   "infer_ms": 4694.25
+  },
+  {
+   "wav": "common_voice_en_32675087.wav",
+   "hyp": "the project was produced by kelsey hersten and ken nils",
+   "ref": "the project was produced by kelso herston and ken nelson",
+   "duration": 8.676,
+   "wall_s": 5.106742858886719,
+   "infer_ms": 4894.9
+  },
+  {
+   "wav": "common_voice_en_41455610.wav",
+   "hyp": "winter sustains an aura of creepiness worthy of roman polanski",
+   "ref": "winter sustains an aura of creepiness worthy of roman polanski",
+   "duration": 5.58,
+   "wall_s": 5.285868406295776,
+   "infer_ms": 5057.75
+  },
+  {
+   "wav": "common_voice_en_41455606.wav",
+   "hyp": "it is open year round for a fee",
+   "ref": "it is open yearround for a fee",
+   "duration": 5.796,
+   "wall_s": 4.914245367050171,
+   "infer_ms": 4668.31
+  },
+  {
+   "wav": "common_voice_en_19945265.wav",
+   "hyp": "nepal themselves were unsuccessful in tournament going without having",
+   "ref": "nepal themselves were unsuccessful in the tournament going without a win",
+   "duration": 8.256,
+   "wall_s": 5.0774571895599365,
+   "infer_ms": 4838.22
+  },
+  {
+   "wav": "common_voice_en_19945266.wav",
+   "hyp": "administrative square drawn are normally commanded by a square drawn leader",
+   "ref": "administrative squadrons are normally commanded by a squadron leader",
+   "duration": 6.792,
+   "wall_s": 5.22159218788147,
+   "infer_ms": 5003.99
+  },
+  {
+   "wav": "common_voice_en_129055.wav",
+   "hyp": "a woman in a black and speaking to a woman in a blue dress",
+   "ref": "a woman in a black hat is speaking to a woman in a blue dress",
+   "duration": 5.184,
+   "wall_s": 5.318708181381226,
+   "infer_ms": 5092.0
+  },
+  {
+   "wav": "common_voice_en_129057.wav",
+   "hyp": "two men won with the beard at a cardinal",
+   "ref": "two men one with a beard at a carnival",
+   "duration": 3.336,
+   "wall_s": 5.2185893058776855,
+   "infer_ms": 4974.56
+  },
+  {
+   "wav": "common_voice_en_39964399.wav",
+   "hyp": "so holding company is based in mains",
+   "ref": "the holding company is based in mainz",
+   "duration": 4.68,
+   "wall_s": 5.0962560176849365,
+   "infer_ms": 4860.54
+  },
+  {
+   "wav": "common_voice_en_39964391.wav",
+   "hyp": "so children find their parents and their look up",
+   "ref": "the children find their parents under lockup",
+   "duration": 4.32,
+   "wall_s": 5.283493757247925,
+   "infer_ms": 4966.84
+  },
+  {
+   "wav": "common_voice_en_1593534.wav",
+   "hyp": "an unknown perpetrator threatened to men from syria with a pistol",
+   "ref": "an unknown perpetrator threatened two men from syria with a pistol",
+   "duration": 6.864,
+   "wall_s": 5.213934659957886,
+   "infer_ms": 4978.62
+  },
+  {
+   "wav": "common_voice_en_1593535.wav",
+   "hyp": "mrs travis when i leave my kids in kindergarten i expect you to supervise them",
+   "ref": "mrs travis when i leave my kids in kindergarten i expect you to supervise them",
+   "duration": 5.4,
+   "wall_s": 5.685031175613403,
+   "infer_ms": 5460.42
+  },
+  {
+   "wav": "common_voice_en_36598764.wav",
+   "hyp": "after the civil war gentlemen moved into the area",
+   "ref": "after the civil war cattlemen moved into the area",
+   "duration": 5.868,
+   "wall_s": 5.28466272354126,
+   "infer_ms": 5046.39
+  },
+  {
+   "wav": "common_voice_en_36598762.wav",
+   "hyp": "these values are probably best chosen for each individual application",
+   "ref": "these values are probably best chosen for each individual application",
+   "duration": 7.416,
+   "wall_s": 5.269395589828491,
+   "infer_ms": 5040.67
+  },
+  {
+   "wav": "common_voice_en_23728477.wav",
+   "hyp": "it was lettering to floor section",
+   "ref": "it was split into four sections",
+   "duration": 3.696,
+   "wall_s": 5.030821084976196,
+   "infer_ms": 4789.62
+  },
+  {
+   "wav": "common_voice_en_23728478.wav",
+   "hyp": "larively the knowledge is found to get her shy boyfriend over",
+   "ref": "lyrically minogue is trying to get her shy boyfriend to open up",
+   "duration": 7.224,
+   "wall_s": 5.607177734375,
+   "infer_ms": 5372.34
+  },
+  {
+   "wav": "common_voice_en_41798596.wav",
+   "hyp": "he finished school without fluent writing ability but he loved to read religious texts",
+   "ref": "he finished school without fluent writing ability but he loved to read religious texts",
+   "duration": 7.56,
+   "wall_s": 5.5599045753479,
+   "infer_ms": 5336.4
+  },
+  {
+   "wav": "common_voice_en_41798570.wav",
+   "hyp": "a win earns a twoyear exemption for most events",
+   "ref": "a win earns a twoyear exemption for most events",
+   "duration": 6.84,
+   "wall_s": 5.238018989562988,
+   "infer_ms": 4995.02
+  },
+  {
+   "wav": "common_voice_en_36415792.wav",
+   "hyp": "the administrative center of the municipality is the village of bollingen",
+   "ref": "the administrative centre of the municipality is the village of ballangen",
+   "duration": 7.488,
+   "wall_s": 5.616059303283691,
+   "infer_ms": 5400.02
+  },
+  {
+   "wav": "common_voice_en_36415791.wav",
+   "hyp": "to help waldo will pop up briefly to give a clue where waldo is",
+   "ref": "to help waldo will popup briefly to give a clue where waldo is",
+   "duration": 8.1,
+   "wall_s": 5.716168165206909,
+   "infer_ms": 5484.47
+  },
+  {
+   "wav": "common_voice_en_22726631.wav",
+   "hyp": "they're sometimes whining",
+   "ref": "they sometimes whine",
+   "duration": 3.744,
+   "wall_s": 4.916960954666138,
+   "infer_ms": 4790.56
+  },
+  {
+   "wav": "common_voice_en_22726632.wav",
+   "hyp": "the elven was also a major sexist in other parts of our people",
+   "ref": "the album was also a major success in other parts of europe",
+   "duration": 6.36,
+   "wall_s": 5.415562152862549,
+   "infer_ms": 5169.55
+  },
+  {
+   "wav": "common_voice_en_31534152.wav",
+   "hyp": "fisher laid his marines during four days of continuous combat with very little teeth",
+   "ref": "fisher led his marines during four days of continuous combat with very little sleep",
+   "duration": 7.308,
+   "wall_s": 5.64690899848938,
+   "infer_ms": 5424.92
+  },
+  {
+   "wav": "common_voice_en_31534149.wav",
+   "hyp": "obtaining wood outside of the rationing system was criminalized",
+   "ref": "obtaining food outside of the rationing system was criminalised",
+   "duration": 6.3,
+   "wall_s": 5.495723247528076,
+   "infer_ms": 5270.43
+  },
+  {
+   "wav": "common_voice_en_19878501.wav",
+   "hyp": "in fact it is clear that it can be modeled with partial ordering",
+   "ref": "in fact it is clear that it can be modelled with partial ordering",
+   "duration": 7.344,
+   "wall_s": 5.531394004821777,
+   "infer_ms": 5298.71
+  },
+  {
+   "wav": "common_voice_en_19878503.wav",
+   "hyp": "other works by hogan include first liquid shipper and the drunk come fall",
+   "ref": "other works by hogan include the sleeping shepherd and the drunken faun",
+   "duration": 6.624,
+   "wall_s": 5.69719934463501,
+   "infer_ms": 5493.64
+  },
+  {
+   "wav": "common_voice_en_17281932.wav",
+   "hyp": "the flag is red blue and yellow",
+   "ref": "the flag is red blue and yellow",
+   "duration": 4.392,
+   "wall_s": 5.275516510009766,
+   "infer_ms": 5048.69
+  },
+  {
+   "wav": "common_voice_en_19759377.wav",
+   "hyp": "manso cyclones farm as worm goes cyclones over land and can lead to tornado formation",
+   "ref": "mesocyclones form as warm core cyclones over land and can lead to tornado formation",
+   "duration": 8.544,
+   "wall_s": 5.77211332321167,
+   "infer_ms": 5557.22
+  },
+  {
+   "wav": "common_voice_en_19759378.wav",
+   "hyp": "almost all the species in the genus are small and live in cloud forest",
+   "ref": "almost all the species in the genus are small and live in cloud forests",
+   "duration": 8.352,
+   "wall_s": 5.705478668212891,
+   "infer_ms": 5467.42
+  },
+  {
+   "wav": "common_voice_en_20871836.wav",
+   "hyp": "in new york he picked tommy galanto",
+   "ref": "in new york he beat tony galento",
+   "duration": 3.864,
+   "wall_s": 5.405087947845459,
+   "infer_ms": 5176.53
+  },
+  {
+   "wav": "common_voice_en_20871832.wav",
+   "hyp": "this saves money man hours and addition to increasing security",
+   "ref": "this saves many man hours in addition to increasing security",
+   "duration": 7.704,
+   "wall_s": 5.349787473678589,
+   "infer_ms": 5108.5
+  },
+  {
+   "wav": "common_voice_en_40900023.wav",
+   "hyp": "whether it can be or hardwood the character goes to the mansion to investigate",
+   "ref": "whether carnby or hartwood the character goes to the mansion to investigate",
+   "duration": 8.028,
+   "wall_s": 5.735516786575317,
+   "infer_ms": 5531.48
+  },
+  {
+   "wav": "common_voice_en_40900026.wav",
+   "hyp": "he died during the cultural revolution",
+   "ref": "he died during the cultural revolution",
+   "duration": 3.96,
+   "wall_s": 5.515677452087402,
+   "infer_ms": 5296.99
+  },
+  {
+   "wav": "common_voice_en_36415240.wav",
+   "hyp": "the program is based on two important features the plan generate test paradigm and knowledge engineering",
+   "ref": "the program is based on two important features the plangeneratetest paradigm and knowledge engineering",
+   "duration": 8.46,
+   "wall_s": 6.420255661010742,
+   "infer_ms": 6175.58
+  },
+  {
+   "wav": "common_voice_en_36415239.wav",
+   "hyp": "lake of the woods forest preserve is a park along the sangamon river",
+   "ref": "lake of the woods forest preserve is a park along the sangamon river",
+   "duration": 7.236,
+   "wall_s": 6.971374034881592,
+   "infer_ms": 6736.3
+  },
+  {
+   "wav": "common_voice_en_20565541.wav",
+   "hyp": "it was a traditional red brick typical of a time period",
+   "ref": "it was a traditional red brick typical of the time period",
+   "duration": 4.32,
+   "wall_s": 6.737736225128174,
+   "infer_ms": 6492.14
+  },
+  {
+   "wav": "common_voice_en_20565543.wav",
+   "hyp": "in book 5 rosario turns to the education of sophie ams wife to be",
+   "ref": "in book five rousseau turns to the education of sophie emiles wifetobe",
+   "duration": 7.152,
+   "wall_s": 7.235274314880371,
+   "infer_ms": 7022.11
+  },
+  {
+   "wav": "common_voice_en_26943279.wav",
+   "hyp": "ham is married to marylyn ham the couple have five children",
+   "ref": "ham is married to marilyn ham the couple have five children",
+   "duration": 6.696,
+   "wall_s": 6.727054595947266,
+   "infer_ms": 6495.92
+  },
+  {
+   "wav": "common_voice_en_26943287.wav",
+   "hyp": "it was the band's first release",
+   "ref": "it was the bands first release",
+   "duration": 4.068,
+   "wall_s": 6.600719928741455,
+   "infer_ms": 6353.79
+  },
+  {
+   "wav": "common_voice_en_20755270.wav",
+   "hyp": "the sheet is also featured on the broadway cflet",
+   "ref": "the shield is also featured on the provincial flag",
+   "duration": 7.128,
+   "wall_s": 7.256893873214722,
+   "infer_ms": 7009.21
+  },
+  {
+   "wav": "common_voice_en_20755269.wav",
+   "hyp": "the color is all we are looking for new players to complete in local league",
+   "ref": "the club is always looking for new players to compete in local leagues",
+   "duration": 7.344,
+   "wall_s": 7.327577829360962,
+   "infer_ms": 7090.7
+  },
+  {
+   "wav": "common_voice_en_37687764.wav",
+   "hyp": "the park is known today for its secrecy",
+   "ref": "the park is known today for its secrecy",
+   "duration": 3.276,
+   "wall_s": 6.888944864273071,
+   "infer_ms": 6664.86
+  },
+  {
+   "wav": "common_voice_en_37687761.wav",
+   "hyp": "most people refer to east shorein as shorein",
+   "ref": "most people refer to east shoreham as shoreham",
+   "duration": 5.22,
+   "wall_s": 7.02226185798645,
+   "infer_ms": 6795.64
+  },
+  {
+   "wav": "common_voice_en_33038642.wav",
+   "hyp": "elitral stria distinctly punctuate",
+   "ref": "elytral stria distinctly punctate",
+   "duration": 8.316,
+   "wall_s": 6.901381969451904,
+   "infer_ms": 6669.39
+  },
+  {
+   "wav": "common_voice_en_33038643.wav",
+   "hyp": "don burgess returned a cinematographer from the first film",
+   "ref": "don burgess returned as cinematographer from the first film",
+   "duration": 5.652,
+   "wall_s": 7.023432493209839,
+   "infer_ms": 6789.29
+  },
+  {
+   "wav": "common_voice_en_37311378.wav",
+   "hyp": "the coffin weird and was gently lowered onto the chairs",
+   "ref": "the coffin veered and was gently lowered on to the chairs",
+   "duration": 10.476,
+   "wall_s": 6.970932483673096,
+   "infer_ms": 6738.93
+  },
+  {
+   "wav": "common_voice_en_37311380.wav",
+   "hyp": "the broker made number one on the new york times sale list",
+   "ref": "the broker made number one on the new york times bestseller list",
+   "duration": 8.46,
+   "wall_s": 7.166912078857422,
+   "infer_ms": 6936.62
+  },
+  {
+   "wav": "common_voice_en_36921514.wav",
+   "hyp": "he is involved in excessively wet dry and barren seasons",
+   "ref": "he is invoked in excessively wet dry and barren seasons",
+   "duration": 6.876,
+   "wall_s": 7.224491596221924,
+   "infer_ms": 7004.8
+  },
+  {
+   "wav": "common_voice_en_36921516.wav",
+   "hyp": "greek artists sometimes portray the human soul in the form of a butterfly",
+   "ref": "greek artists sometimes portrayed the human soul in the form of a butterfly",
+   "duration": 6.84,
+   "wall_s": 6.175239324569702,
+   "infer_ms": 6025.14
+  },
+  {
+   "wav": "common_voice_en_17391057.wav",
+   "hyp": "oh i don't know",
+   "ref": "oh i dont know",
+   "duration": 2.016,
+   "wall_s": 6.681981325149536,
+   "infer_ms": 6438.68
+  },
+  {
+   "wav": "common_voice_en_32826813.wav",
+   "hyp": "detailed sometimes or insulated as the arsonist",
+   "ref": "the title is sometimes translated as the arsonist",
+   "duration": 4.32,
+   "wall_s": 7.071214437484741,
+   "infer_ms": 6825.64
+  },
+  {
+   "wav": "common_voice_en_32826814.wav",
+   "hyp": "forensic literature is department find all of forensic evidence who is left behind",
+   "ref": "forensics later search his apartment and find all forensic evidence lisa left behind",
+   "duration": 6.3,
+   "wall_s": 5.953909635543823,
+   "infer_ms": 5692.92
+  },
+  {
+   "wav": "common_voice_en_35410103.wav",
+   "hyp": "dr strange invites the guests to discover the world of domestic arts",
+   "ref": "doctor strange invites the guests to discover the world of the mystic arts",
+   "duration": 6.948,
+   "wall_s": 5.39907693862915,
+   "infer_ms": 5150.27
+  },
+  {
+   "wav": "common_voice_en_35410128.wav",
+   "hyp": "it is another step on this road back to match action",
+   "ref": "it is another step on his road back to match action",
+   "duration": 6.66,
+   "wall_s": 5.33915638923645,
+   "infer_ms": 5103.07
+  },
+  {
+   "wav": "common_voice_en_19700925.wav",
+   "hyp": "the centre is on the grounds of washington university's tyson research centre",
+   "ref": "the center is on the grounds of washington universitys tyson research center",
+   "duration": 7.632,
+   "wall_s": 5.4961817264556885,
+   "infer_ms": 5228.46
+  },
+  {
+   "wav": "common_voice_en_19700926.wav",
+   "hyp": "the whole pathian art gods and goddesses attended the ceremony",
+   "ref": "the whole pantheon of gods and goddesses attended the ceremony",
+   "duration": 6.0,
+   "wall_s": 5.479786396026611,
+   "infer_ms": 5232.67
+  },
+  {
+   "wav": "common_voice_en_31400173.wav",
+   "hyp": "om",
+   "ref": "aum",
+   "duration": 3.24,
+   "wall_s": 4.931060552597046,
+   "infer_ms": 4675.66
+  },
+  {
+   "wav": "common_voice_en_31400171.wav",
+   "hyp": "raelin calms down and returns to question him",
+   "ref": "raylan calms down and returns to question him",
+   "duration": 7.956,
+   "wall_s": 5.310192346572876,
+   "infer_ms": 5045.69
+  },
+  {
+   "wav": "common_voice_en_31326652.wav",
+   "hyp": "it was played in early march",
+   "ref": "it was played in early march",
+   "duration": 4.428,
+   "wall_s": 5.290612459182739,
+   "infer_ms": 5053.56
+  },
+  {
+   "wav": "common_voice_en_31326653.wav",
+   "hyp": "rex sucked in over and out slow to the bro",
+   "ref": "rags soaked in oil are also suitable",
+   "duration": 4.248,
+   "wall_s": 5.335125923156738,
+   "infer_ms": 5105.23
+  },
+  {
+   "wav": "common_voice_en_17282324.wav",
+   "hyp": "shotty you look jawdropping in the jersey",
+   "ref": "shawty you look jawdropping in that jersey",
+   "duration": 6.816,
+   "wall_s": 5.730303049087524,
+   "infer_ms": 5562.36
+  }
+ ]
+}
