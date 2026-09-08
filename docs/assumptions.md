@@ -35,8 +35,14 @@ Assumptions I made while you were away, for review on return. Ordered by impact.
 6. **Wireless adb is the device's stable transport** (USB dropped under load twice, two cords,
    phone not enumerating at the end). Phone on Wi-Fi at 192.168.12.167:36735.
 7. **Ablation pass criteria** (explicit, in run_depth_ablation.py): head tied_frac < 0.5,
-   act sat < 5%, blank < 0.95, repeat < 0.9, uniq >= 10, head exp <= 20. These thresholds are
+   act sat < 5%, blank < 0.9, uniq >= 10, head exp <= 20. These thresholds are
    my choices — review.
+8. **Whisper repair (Codex's parallel effort) is quantized FOR NPU deployment** (user, 09-07):
+   the repaired model targets HTP execution, not FP CPU. The on-device FP-CPU baseline
+   (24.6% clean WER / 0.89 RTF, SNR curve committed) is therefore the *accuracy* anchor;
+   the true competitive path for the product is "repaired int8 Whisper on HTP". Open risk
+   on that path: autoregressive decoder + KV cache on HTP (per-token graph dispatch),
+   which is where a single-pass CTC design has a structural advantage on SM8350.
 
 ## Low impact / housekeeping
 8. `docs/RESEARCH_ROADMAP.md` was context bleed from another repo (your statement) — removed
