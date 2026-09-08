@@ -42,13 +42,17 @@ def arm_cfg(arm: str, steps: int, ckpt: str) -> argparse.Namespace:
         stats="data/features/global_stats.json",
         clips_dir=CLIPS, ckpt_dir=ckpt,
         batch=2, steps=steps, max_duration=6.0, max_train_samples=512,
-        eval_every=max(steps // 3, 1), eval_samples=16, log_every=10,
+        eval_every=max(steps // 8, 1), eval_samples=16, log_every=10,
         workers=2, threads=4, seed=0, blank_id=4, strict=True,
         resume=False, grad_shift=0, branch_shift=0, rescale_from=None,
         stop_on_head_collapse=False,
     )
-    if arm == "A":   # recenter-only
+    if arm == "A":   # recenter-only, short smoke
         common.update(dim=128, depth=6, rescale_from=str(HEALTHY), branch_shift=0)
+    elif arm == "AX":  # A extended: recenter-only depth 6, trajectory test
+        common.update(dim=128, depth=6, rescale_from=str(HEALTHY), branch_shift=0)
+    elif arm == "D3R":  # depth 3 + recentering, healthy reference trajectory
+        common.update(dim=128, depth=3, rescale_from=str(HEALTHY), branch_shift=0)
     elif arm == "B":  # recenter + branch half (held by default)
         common.update(dim=128, depth=6, rescale_from=str(HEALTHY), branch_shift=1)
     elif arm == "C":  # width probe, no management, early stop
