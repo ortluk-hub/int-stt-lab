@@ -179,7 +179,8 @@ def run_training(cfg: argparse.Namespace) -> dict:
                         max_duration=cfg.max_duration)
 
     model = IntCTCEncoder(dim=cfg.dim, depth=cfg.depth, blank_id=cfg.blank_id,
-                          rescale_targets=rescale_targets, branch_shift=cfg.branch_shift)
+                          rescale_targets=rescale_targets, branch_shift=cfg.branch_shift,
+                          blank_cap_k=(cfg.blank_cap if cfg.blank_cap >= 0 else None))
     report = model.integer_state_report()
     assert report["ok"], report
 
@@ -274,6 +275,7 @@ def run_training(cfg: argparse.Namespace) -> dict:
                 "full_until": cfg.blank_suppress_steps,
                 "zero_after": cfg.blank_suppress_end,
             }
+            record["blank_cap"] = cfg.blank_cap
             inst.append_jsonl(metrics_path, record)
             window_start = time.time()
             window_samples = 0
@@ -339,6 +341,10 @@ def main():
                    help="full blank-suppress offset until this step")
     p.add_argument("--blank-suppress-end", type=int, default=1500,
                    help="half offset until this step, zero after")
+    p.add_argument("--blank-cap", type=int, default=-1,
+                   help="anti-shortcut shaping (D-008 option A): clamp the blank logit at "
+                        "max(non-blank)+K codes per frame, identically in training and eval; "
+                        "-1 disables")
     p.add_argument("--rescale-from", default=None,
                    help="healthy run's metrics.jsonl; derive per-block exponent targets from it")
     p.add_argument("--branch-shift", type=int, default=0,

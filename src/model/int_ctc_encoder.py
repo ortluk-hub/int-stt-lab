@@ -106,6 +106,7 @@ class IntCTCEncoder(nn.Module):
         blank_id: int = 4,
         rescale_targets: list[int] | None = None,
         branch_shift: int = 0,
+        blank_cap_k: int | None = None,
     ):
         super().__init__()
         self.n_mels = n_mels
@@ -114,6 +115,7 @@ class IntCTCEncoder(nn.Module):
         self.dim = dim
         self.vocab = vocab
         self.blank_id = blank_id
+        self.blank_cap_k = blank_cap_k
 
         self.proj = TiLinear(n_mels * stack, dim)
         assert rescale_targets is None or len(rescale_targets) == depth, \
@@ -133,7 +135,25 @@ class IntCTCEncoder(nn.Module):
         """(B, T, n_mels) int8 -> (B, T', n_mels*stack) int8 via stacked sliding windows."""
         win = feats.unfold(1, self.stack, self.stride)  # (B, T', n_mels, stack)
         win = win.permute(0, 1, 3, 2).contiguous()  # (B, T', stack, n_mels)
-        return win.view(win.size(0), win.size(1), -1)  # (B, T', stack*n_mels)
+        return win.view(win.size(0), win.size(1), -1)
+
+    def _cap_blank(self, logits: torch.Tensor) -> torch.Tensor:
+        """Clamp the blank column at max(non-blank) + K codes, in place.
+
+        Anti-shortcut shaping (D-008 option A): blank may win any frame by at
+        most K codes, so the softmax can never saturate on blank and the
+        all-blank path cannot concentrate probability. Applied identically in
+        training and eval — part of the model definition (NPU-trivial integer
+        op). Raw over-dominance is invisible at this surface: the head cannot
+        buy the shortcut by pushing the blank column up.
+        """
+        k = self.blank_cap_k
+        others = logits.clone()
+        others[..., self.blank_id] = -128  # exclude blank from the frame max
+        cap = others.max(dim=-1).values.to(torch.int16) + k
+        capped = torch.minimum(logits[..., self.blank_id].to(torch.int16), cap)
+        logits[..., self.blank_id] = torch.clamp(capped, -128, 127).to(torch.int8)
+        return logits  # (B, T', stack*n_mels)
 
     def forward(self, input: Tuple[torch.Tensor, int]) -> Tuple[torch.Tensor, int]:
         feats, exp = input  # (B, T, n_mels) int8
@@ -142,6 +162,8 @@ class IntCTCEncoder(nn.Module):
         for block in self.blocks:
             x, exp = block((x, exp))
         logits, logits_exp = self.head((x, exp))
+        if self.blank_cap_k is not None:
+            logits = self._cap_blank(logits)
         return logits, logits_exp
 
     def backward(self, input: Tuple[torch.Tensor, int]) -> Tuple[torch.Tensor, int]:
