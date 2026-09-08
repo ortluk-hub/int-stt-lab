@@ -393,3 +393,64 @@ established before step 250 (unlikely given the babble window).
 
 **Artifacts:** checkpoints/cleanbase-d3-128-bs/ (as produced),
 logs/cleanbase_d3_128_bs.log.
+
+---
+
+## D-008: bs arm verdict — constant blank suppression is elastically compensated; mode (c)
+
+**Decision:** D-007's blank-suppression arm failed on pre-registered mode (c)
+(no change), with a sharper mechanism: the constant tax was *paid, not
+obeyed*. The head pushed the raw blank column up ~20 codes (head gap 21.4 at
+step 250 vs 3.2 in gs3) so blank won even the unbiased decode; the suppressed
+loss tracked the tax amount exactly (13.7–35.9 at offset 8 → 8–9 at offset 4
+→ standard 8–13 band at offset 0) with uniq 1 at *every* eval. The arm also
+*prevented the babble phase* — the only diverse-text phenomenon the project
+has produced (uniq 1 at step 250 vs 212 without suppression). Constant
+suppression is strictly worse than none in this regime. Next decision
+pending user (options below); no run launched.
+
+**Evidence (cleanbase-d3-128-bs, 3000 steps, no early stop):**
+
+| step | loss | offset | WER | uniq | blank | head gap | rescales p/b0 |
+|---|---|---|---|---|---|---|---|
+| 250 | 13.7 | 8 | 1.00 | 1 | 0.988 | 21.4 | 13/3 |
+| 750 | 35.9 | 8 | 1.00 | 1 | 0.990 | 11.2 | 74/16 |
+| 1000 | 9.0 | 4 | 1.00 | 1 | 0.981 | 11.7 | 105/22 |
+| 1500 | 8.7 | 0 | 1.00 | 1 | 0.988 | 8.5 | 160/37 |
+| 3000 | 9.7 | 0 | 1.00 | 1 | 0.987 | 4.3 | 305/114 |
+
+- Loss = suppressed objective; its level moves with the offset, not with any
+  semantic progress. best_wer 1.0 (no eval ever beat the collapsed baseline).
+- Head stayed healthy (gap 4–21, tied ≤ 2%); rescale churn moderate.
+
+**Interpretation:** a constant per-frame logit tax cannot change the
+shortcut's status as the easiest descent direction — the gradient compensates
+it within ~250 steps. The babble-phase suppression is the notable casualty:
+early training under a blank tax skips straight to compensated blank.
+
+**Where the evidence now points:** four consecutive arms (failed, gs3,
+gs3-rq, bs) establish that no cheap lever tried so far prevents the all-blank
+shortcut, and the one period of diverse text (babble, steps ~250 in gs3/gs3-rq)
+never converted into alignment (WER < 1). The remaining explanations diverge:
+(i) the shortcut is still preventable with a *compensation-proof* shaping
+term, or (ii) this 210k-param MLP encoder at batch 4 / 1.6 epochs simply
+cannot begin alignment, and the babble ceiling is a capacity/budget limit —
+the whisper-base accuracy anchor is a ~74M-param attention model (~350×
+larger).
+
+**Next-run options (pending user decision):**
+- **A: blank-cap arm (compensation-proof shaping, recommended first — cheap,
+  ~2h).** Clamp the blank logit at `max(non-blank) + K` codes per frame
+  (K≈2–4), applied identically in training and eval (the cap is a fixed
+  integer op, NPU-trivial, and becomes part of the model definition). When
+  blank over-dominates, its gradient is zero at the clamp — the tax cannot be
+  paid — and the only descent is raising token logits. If diversity still
+  dies under the cap, the shortcut is not the binding constraint and we
+  stop spending arms on shaping.
+- **B: capacity/budget arm.** Same config at 10k steps (~5 epochs) and/or
+  dim 256, no shaping — tests whether alignment is a budget question.
+  Costs ~6h+ per arm at current throughput.
+- C: A first, then B if A fails (sequential attribution).
+
+**Artifacts:** checkpoints/cleanbase-d3-128-bs/{metrics.jsonl,history.json,
+best.pt,latest.pt} (committed), logs/cleanbase_d3_128_bs.log.

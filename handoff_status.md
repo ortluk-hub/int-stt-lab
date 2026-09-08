@@ -1,27 +1,26 @@
 Who's ball: Nemo
 
-Current Task: Blank-suppression arm (D-007, D-006 option A):
-cleanbase-d3-128-bs. Same config as gs3-rq plus training-time blank-logit
-suppression (8-code offset on the head's blank column in the training CTC
-loss, steps <1000; halved to 4 until step 1500; 0 after; eval decodes
-unbiased). Launched 2026-09-08 ~12:40, ETA ~14:25; monitor every 20 min.
+Current Task: Blank-suppression arm (D-007/D-008) complete - failed mode (c)
+with mechanism: the constant blank tax was elastically compensated (head gap
+21 codes at step 250; loss tracked the tax amount; uniq 1 at every eval),
+and it prevented the babble phase entirely (uniq 1 at step 250 vs 212
+without suppression). Four-arm arc now committed: failed -> gs3 -> gs3-rq ->
+bs. No cheap lever tried so far prevents the all-blank shortcut.
 
 Status:
-- Three-run arc complete (failed -> gs3 -> gs3-rq): integer mechanics are
-  sound; the binding constraint is the CTC all-blank shortcut. Rail
-  management stays in the standard config as free insurance.
-- D-007 tests the semantic hypothesis directly. Success: uniq >= ~10 or
-  WER < 1 through the step 250-1000 window and surviving ramp-off.
-- Completion routine: trajectory + four-way comparison, D-008 draft if
-  evidence is clear, artifact commit, cron cleanup.
+- Integer mechanics are sound (init fix + grad_shift 3 + rail rescale are
+  the standard config). The binding question has narrowed to: (i) can a
+  compensation-proof shaping term hold diversity (blank-cap arm), or
+  (ii) is the babble ceiling a capacity/budget limit (210k-param MLP vs the
+  ~74M-param whisper-base accuracy anchor).
+- D-008 options pending user: A blank-cap (clamp blank at max(non-blank)+K
+  codes, train+eval, K~2-4; ~2h), B capacity/budget (10k steps and/or
+  dim 256; ~6h+), C sequential.
 
 Verification Artifacts:
-- docs/decisions.md D-001..D-007 (committed)
-- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq}/ (committed); -bs as produced
+- docs/decisions.md D-001..D-008 (committed)
+- checkpoints/cleanbase-d3-128{,-gs3,-gs3-rq,-bs}/ (all committed)
 - scripts/probe_weight_rail_freeze.py (committed)
 
-Review Notes: Morgan review of D-002..D-007 welcome while the arm runs.
-No further runs without explicit user decision. Next candidates if the
-blank-suppression arm fails per its documented modes: longer suppression
-hold, permanent low offset, integer LR schedule, or more alignment
-capacity/epochs.
+Review Notes: Morgan review of D-002..D-008 welcome. No further runs
+launched without explicit user decision.
