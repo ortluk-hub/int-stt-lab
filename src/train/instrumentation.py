@@ -39,7 +39,7 @@ def sha256_obj(obj) -> str:
 
 
 QUANT_FORMAT = {
-    "weights": "int8 symmetric, per-tensor weight_exp (int64), xavier init quantized",
+    "weights": "int8 symmetric, per-tensor weight_exp (int64), xavier init quantized scale-preserving (NITI TiFloatToInt8 semantics)",
     "activations": "int8 + tracked exponent; act_calc rescales int32 accum to 7-bit",
     "features": "int8 per-sample max-abs quantization of normalized log-mel",
     "grads": "psto_shift quantization to 7 bits (BITWIDTH), int32 accumulation",
@@ -129,7 +129,12 @@ def enable_clamp_tracking(on: bool):
 
 
 def grad_health(model: torch.nn.Module) -> dict:
-    """Per-layer gradient stats from the most recent backward pass."""
+    """Per-layer gradient stats from the most recent backward pass.
+
+    rail_outward_frac is the D-002 freeze signature: fraction of weight codes
+    sitting at an int8 rail with a gradient pointing further outward (the
+    update clamps back to the same code, a permanent no-op once it dominates).
+    """
     out = {}
     for name, mod in model.named_modules():
         if isinstance(mod, UpdateWeight) and getattr(mod, "grad_int32acc", None) is not None:
@@ -140,9 +145,16 @@ def grad_health(model: torch.nn.Module) -> dict:
                 "acc_bitwidth": int(acc.abs().max().clamp_min(1).log2().ceil()),
             }
             if grad is not None:
+                w = mod.weight.detach()
+                at_rail = (w >= 127) | (w <= -128)
+                outward = ((w >= 127) & (grad < 0)) | ((w <= -128) & (grad > 0))
                 entry.update({
                     "rails_frac": round(float(((grad >= 127) | (grad <= -128)).float().mean()), 6),
                     "zero_frac": round(float((grad == 0).float().mean()), 6),
+                    "max_abs_code": int(grad.abs().max()),
+                    "grad_exp": int(getattr(mod, "grad_exp", 0)),
+                    "w_rail_frac": round(float(at_rail.float().mean()), 6),
+                    "rail_outward_frac": round(float(outward.float().mean()), 6),
                 })
             out[name] = entry
     return out

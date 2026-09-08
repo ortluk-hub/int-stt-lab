@@ -102,12 +102,21 @@ def range_estimate(input: torch.Tensor) -> int:
 
 
 def weight_quant(input: torch.Tensor) -> Tuple[torch.Tensor, int]:
-    """Quantize float weight to int8 with exponent."""
+    """Quantize float weight to int8 with exponent, preserving float scale.
+
+    NITI TiFloatToInt8 semantics (src/niti/ti_torch.py): exponent from the true
+    max-abs bitwidth, codes = round(w * 2^-exp), so code * 2^exp reconstructs
+    the xavier tensor up to rounding. The previous max-normalized codes plus a
+    clamp_min(1) exponent forced weight_exp = -7 for every sub-unit tensor,
+    renormalizing all weights to max|w| ~ 1 (D-002 rail-freeze root cause).
+    """
     input_range = torch.max(torch.abs(input))
-    input_bitwidth = torch.ceil(torch.log2(input_range.clamp_min(1)))
+    input_bitwidth = torch.ceil(torch.log2(input_range.clamp_min(2.0 ** -30)))
     act_exp = int(input_bitwidth.item()) - BITWIDTH
-    round_val = torch.round(input / input_range * (2 ** BITWIDTH - 1)).to(torch.int8)
-    return round_val, act_exp
+    norm_val = input * (2.0 ** (BITWIDTH - int(input_bitwidth.item())))
+    round_val = torch.round(norm_val)
+    clamp_val = torch.clamp(round_val, QUANT_MIN, QUANT_MAX).to(torch.int8)
+    return clamp_val, act_exp
 
 
 def float_to_int8(input: torch.Tensor) -> Tuple[torch.Tensor, int]:
