@@ -32,12 +32,16 @@ from tokenizers import Tokenizer
 
 
 def _load_log_mel_fn():
+    return _load_ef_module().compute_log_mel_librosa
+
+
+def _load_ef_module():
     spec = importlib.util.spec_from_file_location(
         "extract_features", Path(__file__).parent / "extract_features.py"
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.compute_log_mel_librosa
+    return mod
 
 
 class ASRDataset(torch.utils.data.Dataset):
@@ -52,10 +56,16 @@ class ASRDataset(torch.utils.data.Dataset):
         clips_dir: str | Path | None = None,
         max_duration: float = 30.0,  # seconds
         min_duration: float = 0.5,   # seconds
+        noise_dir: str | Path | None = None,   # e.g. data/musan/noise (free-sound wavs)
+        noise_prob: float = 0.0,               # probability of mixing noise into a sample
+        snr_db_range: tuple[float, float] = (0.0, 20.0),
     ):
         self.manifest_path = Path(manifest_path)
         self.feature_dir = Path(feature_dir)
         self.clips_dir = Path(clips_dir) if clips_dir else None
+        self.noise_files = sorted(Path(noise_dir).rglob("*.wav")) if noise_dir else []
+        self.noise_prob = noise_prob
+        self.snr_db_range = snr_db_range
         self.tokenizer = Tokenizer.from_file(str(tokenizer_path))
         
         # Load global stats for normalization
@@ -90,6 +100,25 @@ class ASRDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.entries)
     
+    def _features_from_audio(self, audio_path: Path):
+        """Load waveform, optionally mix MUSAN noise at a random SNR, compute log-mel."""
+        ef = _load_ef_module()
+        import librosa
+        y, sr = librosa.load(audio_path, sr=16000, mono=True)
+        if self.noise_files and random.random() < self.noise_prob:
+            noise, _ = librosa.load(random.choice(self.noise_files), sr=16000, mono=True)
+            if len(noise) < len(y):
+                reps = int(np.ceil(len(y) / max(len(noise), 1)))
+                noise = np.tile(noise, reps)
+            start = random.randint(0, len(noise) - len(y))
+            noise = noise[start:start + len(y)]
+            snr_db = random.uniform(*self.snr_db_range)
+            p_sig = float(np.mean(y ** 2)) + 1e-12
+            p_noise = float(np.mean(noise ** 2)) + 1e-12
+            noise *= np.sqrt(p_sig / (p_noise * 10 ** (snr_db / 10)))
+            y = y + noise
+        return ef.compute_log_mel(y, sr)
+
     def __getitem__(self, idx: int) -> dict[str, Any]:
         entry = self.entries[idx]
         
@@ -108,11 +137,12 @@ class ASRDataset(torch.utils.data.Dataset):
             stem = Path(entry.get('audio_path', '')).stem
             feature_path = self.feature_dir / f"{stem}.npy"
         
-        if not feature_path.exists():
+        needs_audio = (not feature_path.exists()
+                       or (self.noise_files and random.random() < self.noise_prob))
+        if needs_audio:
             if self.clips_dir is None:
                 raise FileNotFoundError(f"Feature file not found: {feature_path}")
-            audio_path = self.clips_dir / entry.get('audio_path', '')
-            features, _ = _load_log_mel_fn()(audio_path)  # (T, n_mels) float32
+            features, _ = self._features_from_audio(self.clips_dir / entry.get('audio_path', ''))
         else:
             features = np.load(feature_path)  # (T, n_mels) float32
         
