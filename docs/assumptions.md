@@ -43,6 +43,9 @@ Assumptions I made while you were away, for review on return. Ordered by impact.
    the true competitive path for the product is "repaired int8 Whisper on HTP". Open risk
    on that path: autoregressive decoder + KV cache on HTP (per-token graph dispatch),
    which is where a single-pass CTC design has a structural advantage on SM8350.
+9. **Milestone order (user, 09-08): high-quality clean base first** on our path; noisy
+   fine-tuning comes after. MUSAN augmentation stays off during ablations/curriculum
+   until the model produces diverse clean text.
 
 ## Low impact / housekeeping
 8. `docs/RESEARCH_ROADMAP.md` was context bleed from another repo (your statement) — removed
