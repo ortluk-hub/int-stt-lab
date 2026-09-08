@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-Depth-control ablation: can six blocks stay numerically healthy at dim=128?
+Depth/width ablation harness for the integer CTC encoder.
 
-Isolates depth as the only moved axis relative to the healthy depth-3 run
-(dim 128 held constant). Two arms:
-  control   : depth 6, no exponent management (reproduces run-1 conditions)
-  treated   : depth 6 + per-block residual scaling (2^-1) + BFP exponent
-              recentering with targets derived from the healthy depth-3 record
+Arms (select with --arms, comma-separated):
+  A : depth 6, dim 128, recenter-only (branch_shift=0). Causal test: is the
+      blank attractor from recentering itself or from halving the branch?
+  B : depth 6, dim 128, recenter + branch 2^-1 (the original treated arm).
+      Held per user decision — run only on explicit request.
+  C : depth 6, dim 256, no management. Tests the width-coupling hypothesis
+      with an early numerical stop on head-separation collapse.
 
-Pass criteria (evaluated on the last metrics.jsonl record):
-  head_tied_frac < 0.5   (all-tied head = immediate numerical fail)
-  max act sat_frac < 0.05 (no rail growth)
-  blank_rate < 0.95       (non-blank text emerging)
-  repeat_rate < 0.9 and unique_tokens >= 10 (non-repetitive)
-  head exp <= 20          (exponent growth bounded vs healthy ~15)
+Pass criteria (last metrics.jsonl record):
+  head_tied_frac < 0.5, act sat < 5%, blank < 0.95, repeat < 0.9,
+  uniq >= 10, head exp <= 20.
 
-Usage: ./venv/bin/python scripts/run_depth_ablation.py [--steps 60]
+Usage: ./venv/bin/python scripts/run_depth_ablation.py --arms A,C [--steps 60]
 """
 
 import argparse
@@ -30,31 +29,33 @@ sys.path.insert(0, str(ROOT))
 from src.train.train_ctc import run_training
 
 HEALTHY = ROOT / "checkpoints/int-ctc-instr-test/metrics.jsonl"
+CLIPS = "/home/ortluk/ortluk-hub/common-voice-26-en-recovered/cv-corpus-26.0-2026-06-12/en"
 
 
-def arm_cfg(depth_rescale: bool, steps: int, ckpt: str) -> argparse.Namespace:
-    cfg = argparse.Namespace(
+def arm_cfg(arm: str, steps: int, ckpt: str) -> argparse.Namespace:
+    common = dict(
         train_manifest="data/manifests/train.jsonl",
         dev_manifest="data/manifests/dev.jsonl",
         feature_dir_train="data/features/train",
         feature_dir_dev="data/features/dev",
         tokenizer="data/tokenizer/tokenizer.json",
         stats="data/features/global_stats.json",
-        clips_dir="/home/ortluk/ortluk-hub/common-voice-26-en-recovered/cv-corpus-26.0-2026-06-12/en",
-        ckpt_dir=ckpt,
-        dim=128, depth=6, batch=2, steps=steps,
-        max_duration=6.0, max_train_samples=512,
+        clips_dir=CLIPS, ckpt_dir=ckpt,
+        batch=2, steps=steps, max_duration=6.0, max_train_samples=512,
         eval_every=max(steps // 3, 1), eval_samples=16, log_every=10,
         workers=2, threads=4, seed=0, blank_id=4, strict=True,
-        resume=False, grad_shift=0,
-        rescale_from=str(HEALTHY) if depth_rescale else None,
-        branch_shift=1 if depth_rescale else 0,
+        resume=False, grad_shift=0, branch_shift=0, rescale_from=None,
+        stop_on_head_collapse=False,
     )
-    return cfg
-
-
-def last_record(ckpt: str) -> dict:
-    return json.loads(open(Path(ckpt) / "metrics.jsonl").readlines()[-1])
+    if arm == "A":   # recenter-only
+        common.update(dim=128, depth=6, rescale_from=str(HEALTHY), branch_shift=0)
+    elif arm == "B":  # recenter + branch half (held by default)
+        common.update(dim=128, depth=6, rescale_from=str(HEALTHY), branch_shift=1)
+    elif arm == "C":  # width probe, no management, early stop
+        common.update(dim=256, depth=6, stop_on_head_collapse=True)
+    else:
+        raise ValueError(arm)
+    return argparse.Namespace(**common)
 
 
 def evaluate_criteria(rec: dict) -> list[tuple[str, bool, str]]:
@@ -62,7 +63,7 @@ def evaluate_criteria(rec: dict) -> list[tuple[str, bool, str]]:
     head_exp = rec["integer_health"]["scale"]["act_exps"]["head"]
     sep = rec["integer_health"]["head_separation"]
     tok = rec["tokens"]
-    checks = [
+    return [
         ("head_tied_frac < 0.5", sep["tied_frac"] < 0.5, f"tied_frac={sep['tied_frac']}"),
         ("act_sat_frac < 0.05", sat < 0.05, f"max_sat={sat}"),
         ("blank_rate < 0.95", tok["blank_rate"] < 0.95, f"blank={tok['blank_rate']}"),
@@ -70,33 +71,37 @@ def evaluate_criteria(rec: dict) -> list[tuple[str, bool, str]]:
         ("unique_tokens >= 10", tok["unique_tokens"] >= 10, f"uniq={tok['unique_tokens']}"),
         ("head_exp <= 20", head_exp <= 20, f"head_exp={head_exp}"),
     ]
-    return checks
 
 
-def run_arm(name: str, treated: bool, steps: int):
-    ckpt = f"checkpoints/ablation-d6-{name}"
+def run_arm(arm: str, steps: int):
+    ckpt = f"checkpoints/ablation-{arm.lower()}"
     shutil.rmtree(ckpt, ignore_errors=True)
-    print(f"\n===== ARM: {name} (depth 6, dim 128, exponent mgmt={'ON' if treated else 'OFF'}) =====", flush=True)
-    run_training(arm_cfg(treated, steps, ckpt))
-    rec = last_record(ckpt)
-    print(f"\n--- {name} criteria ---")
+    cfg = arm_cfg(arm, steps, ckpt)
+    print(f"\n===== ARM {arm}: dim={cfg.dim} depth={cfg.depth} "
+          f"rescale={'ON' if cfg.rescale_from else 'off'} "
+          f"branch_shift={cfg.branch_shift} "
+          f"early_stop={'ON' if cfg.stop_on_head_collapse else 'off'} =====", flush=True)
+    run_training(cfg)
+    rec = json.loads(open(Path(ckpt) / "metrics.jsonl").readlines()[-1])
+    print(f"\n--- ARM {arm} criteria (step {rec['step']}) ---")
     ok = True
     for label, passed, detail in evaluate_criteria(rec):
         print(f"  {'PASS' if passed else 'FAIL'}  {label:22s} {detail}")
         ok = ok and passed
-    print(f"  ARM RESULT: {'PASS' if ok else 'FAIL'}")
-    pairs = rec["pairs"][:3]
-    for p in pairs:
+    print(f"  ARM {arm} RESULT: {'PASS' if ok else 'FAIL'}")
+    for p in rec["pairs"][:3]:
         print(f"    ref: {p['ref'][:60]!r}\n    hyp: {p['hyp'][:60]!r}")
-    return ok
+    return ok, rec
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+    ap.add_argument("--arms", default="A,C")
     ap.add_argument("--steps", type=int, default=60)
     a = ap.parse_args()
-    control = run_arm("control", treated=False, steps=a.steps)
-    treated = run_arm("treated", treated=True, steps=a.steps)
+    results = {}
+    for arm in [x.strip() for x in a.arms.split(",") if x.strip()]:
+        results[arm] = run_arm(arm, a.steps)[0]
     print("\n===== ABLATION SUMMARY =====")
-    print(f"control (no mgmt):  {'PASS' if control else 'FAIL'}")
-    print(f"treated (mgmt on):  {'PASS' if treated else 'FAIL'}")
+    for arm, ok in results.items():
+        print(f"arm {arm}: {'PASS' if ok else 'FAIL'}")

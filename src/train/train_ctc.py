@@ -233,6 +233,8 @@ def run_training(cfg: argparse.Namespace) -> dict:
             inst.enable_clamp_tracking(True)
             ev = evaluate(model, dev_ds, cfg.eval_samples, cfg.blank_id)
             inst.enable_clamp_tracking(False)
+            head_collapsed = (cfg.stop_on_head_collapse
+                              and ev["head_sep"]["tied_frac"] >= 0.99)
             m = ev["metrics"]
             tok = inst.token_diag(ev["frame_argmax"], ev["decoded_ids"], cfg.blank_id)
             record = inst.build_record(
@@ -258,6 +260,12 @@ def run_training(cfg: argparse.Namespace) -> dict:
                 best_wer = m["wer"]
                 torch.save({"model": model.state_dict(), "step": step,
                             "config": vars(cfg), "metrics": m}, ckpt_dir / "best.pt")
+
+            if head_collapsed:
+                print(f"  EARLY STOP step {step}: head separation collapsed "
+                      f"(tied_frac={ev['head_sep']['tied_frac']})", flush=True)
+                history["early_stop"] = "head_collapse"
+                break
 
     history["wall_s"] = time.time() - t_start
     history["best_wer"] = best_wer
@@ -296,6 +304,8 @@ def main():
                    help="healthy run's metrics.jsonl; derive per-block exponent targets from it")
     p.add_argument("--branch-shift", type=int, default=0,
                    help="scale residual branch by 2^-k before the add (0 = off)")
+    p.add_argument("--stop-on-head-collapse", action="store_true",
+                   help="early stop when head top1-top2 ties on >=99% of frames")
     p.add_argument("--resume", action="store_true")
     run_training(p.parse_args())
 
